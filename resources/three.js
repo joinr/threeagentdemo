@@ -1,3 +1,4 @@
+goog.provide('three');
 /**
  * @license
  * Copyright 2010-2021 Three.js Authors
@@ -36363,3 +36364,5 @@
 	Object.defineProperty(exports, '__esModule', { value: true });
 
 })));
+
+three = THREE;

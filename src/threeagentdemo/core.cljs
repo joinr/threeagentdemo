@@ -3,14 +3,14 @@
    [goog.dom :as gdom]
    [reagent.core :as r]
    [reagent.dom :as rdom]
-    #_cljsjs.three
    [threeagent.core :as th]))
 
 ;; Use reactive atom for storing state
-(defonce state (th/atom {:ticks 0}))
+(defonce state (th/atom {:ticks 0
+                         :sphere 0}))
 
 ;; Tick every second
-(.setInterval js/window #(swap! state update :ticks inc) 1000)
+(.setInterval js/window #(swap! state update :ticks inc) 17)
 
 ;; Form-1 component example
 (defn color-box [color size]
@@ -20,14 +20,15 @@
 ;; Form-2 component example
 (defn growing-sphere []
   (let [s (atom 0)]
-    (.setInterval js/window #(swap! s inc) 5000)
+    #_(.setInterval js/window #(swap! s + 0.5) 500)
     (fn []
-      [:sphere {:radius @s}])))
+      [:sphere {:radius   (-> @state :sphere)
+                :material {:color "blue"}}])))
 
 ;; Root component render function
 (defn root []
   [:object {:position [1.0 0 -4.0]
-            :rotation [0 (.sin js/Math (:ticks @state)) 0]} ; Rotate on Y axis based on :ticks
+            :rotation [0 (.sin js/Math (/ (:ticks @state) 500)) 0]} ; Rotate on Y axis based on :ticks
    [:ambient-light {:intensity 0.8}]
    [color-box "red" 1.0] ; Don't forget to use square brackets!
    [growing-sphere]])

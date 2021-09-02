@@ -10,7 +10,10 @@
  :output-dir "resources/public/js/dev"
  :asset-path "js/dev"
  ;;:npm-deps {:three "0.131.3 "}
+ #_#_
  :foreign-libs [{:file "resources/three.js"
                  :file-min "resources/three.min.js"
                  :provides ["three"]
-                 #_#_:module-type :es6}]}
+                 #_#_:module-type :es6}]
+
+ :libs ["resources/three.js"]}
