@@ -11,9 +11,11 @@
  :asset-path "js/dev"
  ;;:npm-deps {:three "0.131.3 "}
  #_#_
- :foreign-libs [{:file "resources/three.js"
-                 :file-min "resources/three.min.js"
-                 :provides ["three"]
-                 #_#_:module-type :es6}]
-
- :libs ["resources/three.js"]}
+ :foreign-libs [#_{:file "resources/three.js"
+                   :file-min "resources/three.min.js"
+                   :provides ["three"]}
+                #_
+                {:file "resources/svgloader.js"
+                 :provides ["svgloader"]}]
+ :libs ["resources/three.js"
+        "resources/three.svgloader.js"]}
