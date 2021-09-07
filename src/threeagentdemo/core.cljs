@@ -3,14 +3,13 @@
    [goog.dom :as gdom]
    [reagent.core :as r]
    [reagent.dom :as rdom]
-   [threeagent.core :as th]))
+   [threeagent.core :as th]
+   [threeagentdemo.threehelp :as threehelp]))
 
 ;; Use reactive atom for storing state
 (defonce state (th/atom {:ticks 0
-                         :sphere 0}))
-
-;; Tick every second
-(.setInterval js/window #(swap! state update :ticks inc) 17)
+                         :sphere 0
+                         :ticking? false}))
 
 ;; Form-1 component example
 (defn color-box [color size]
@@ -25,13 +24,22 @@
       [:sphere {:radius   (-> @state :sphere)
                 :material {:color "blue"}}])))
 
+(defn row-of-boxes [count color]
+  [:object
+   (for [i (range count)]
+     [:box {:position [i 0 0]
+            :material {:color color}}])])
+
 ;; Root component render function
 (defn root []
-  [:object {:position [1.0 0 -4.0]
-            :rotation [0 (.sin js/Math (/ (:ticks @state) 500)) 0]} ; Rotate on Y axis based on :ticks
-   [:ambient-light {:intensity 0.8}]
-   [color-box "red" 1.0] ; Don't forget to use square brackets!
-   [growing-sphere]])
+  [:object
+   [:object {:position [1.0 0 -4.0]
+             :rotation [0 (.sin js/Math (/ (:ticks @state) 100)) 0]} ; Rotate on Y axis based on :ticks
+    [:ambient-light {:intensity 0.8}]
+    [color-box "red" (* (.cos js/Math (/ (:ticks @state) 100)) 10.0)] ; Don't forget to use square brackets!
+    [growing-sphere]]
+   [:object {:position [(+ -5.0 (.sin js/Math (/ (:ticks @state) 100))) 0.0 -5.0]}
+    [row-of-boxes 10 "green"]]])
 
 
 ;; Initialize and begin rendering threeagent scene
@@ -46,10 +54,16 @@
   (when-let [el (get-app-element)]
     (mount el)))
 
+(defn tick! []
+  (when-not (:ticking? @state)
+    (swap! state assoc :ticking? true)
+    (.setInterval js/window #(swap! state update :ticks inc) 17)))
+
 ;; conditionally start your application based on the presence of an "app" element
 ;; this is particularly helpful for testing this ns without launching the app
 (defn main []
-  (->> (th/render root (.-body js/document))
+  (tick!)
+  (->> (threehelp/render root (.-body js/document) {:antialias true})
        (swap! state assoc :scene)))
 
 ;; specify reload hook with ^;after-load metadata
