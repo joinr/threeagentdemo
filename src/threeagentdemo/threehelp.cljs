@@ -7,6 +7,14 @@
             ["three" :as three]
             [threeagent.impl.virtual-scene :as vscene]))
 
+;;kind of lame, global resize listener for our canvas.  just getting it working for now.
+(defonce resized
+  (let [res (th/atom nil)]
+    (.addEventListener js/window "resize"
+                       (fn []
+                         (reset! res true)))
+    res))
+
 ;;imports since these are private and we need access (prefer to have stuff public)
 (def find-context        #'threeagent.impl.scene/find-context )
 ;;(def reset-context!    #'threeagent.impl.scene/reset-context!)
@@ -32,8 +40,11 @@
    :powerPreference  :default ;; "high-performance", "low-power" or "default"
    :failIfMajorPerformanceCaveat false
    :depth true
-   :logarithmicDepthBuffer false})
+   :logarithmicDepthBuffer false
+   ;;not three.js related.
+   :resize true})
 
+;;may be obviated with resizing...
 ;;allows caller to set the pixel ratio of the renderer, defaults
 ;;to device's pixel ratio if not specified.
 (defn set-pixels!
@@ -48,7 +59,32 @@
 
 ;;we ensure the device pixel ratio is always nice.
 (defn default-render-setup [r]
-  (set-pixels! r))
+  r
+  #_(set-pixels! r))
+
+;;responsive canvas sizing.
+
+(defn resize-renderer-to-display-size [renderer]
+  (let [canvas (.-domElement renderer)
+        pixel-ratio (.-devicePixelRatio js/window)
+        width  (bit-or  (* pixel-ratio (.-clientWidth canvas)) 0)
+        height (bit-or  (* pixel-ratio (.-clientHeight canvas)) 0)
+        need-resize (or @resized
+                        (or (not= (.-width canvas) width) (not= (.-height canvas) height)))]
+    (when need-resize
+      (println {:old  [(.-clientWidth canvas) (.-clientHeight canvas) ]
+                :new  [width height]})
+      (.setSize renderer width height false)
+      (reset! resized false))
+    need-resize))
+
+(defn resize-on-render [renderer camera]
+  (when (resize-renderer-to-display-size renderer)
+    (let [_ (println "resizing")
+          canvas (.-domElement renderer)]
+      (set! (.-aspect camera) (/ (.-clientWidth canvas) (.-clientHeight canvas)))
+      (.updateProjectionMatrix camera))))
+
 
 (defn ^scene/Context create-context
   ([root-fn dom-root on-before-render-cb on-after-render-cb shadow-map render-params]
@@ -67,8 +103,13 @@
                                    scene-root
                                    dom-root nil
                                    canvas camera cameras
-                                   clock renderer on-before-render-cb on-after-render-cb)]
-      (set! (.-animateFn context) #(animate context))
+                                   clock renderer on-before-render-cb on-after-render-cb)
+           animator (if (render-params :resize)
+                      (fn []
+                        (resize-on-render renderer camera)
+                        (animate context))
+                      #(animate context))]
+      (set! (.-animateFn context) animator #_#(animate context))
       (init-scene context virtual-scene scene-root)
       (.push contexts context)
       context)))
@@ -114,3 +155,24 @@
       (.setAnimationLoop renderer (.-animateFn context))
       context)))
 
+
+;; function resizeRendererToDisplaySize(renderer) {
+;;                                                 const canvas = renderer.domElement;
+;;                                                 const pixelRatio = window.devicePixelRatio;
+;;                                                 const width  = canvas.clientWidth  * pixelRatio | 0;
+;;                                                 const height = canvas.clientHeight * pixelRatio | 0;
+;;                                                 const needResize = canvas.width !== width || canvas.height !== height;
+;;                                                 if (needResize) {
+;;                                                                  renderer.setSize(width, height, false);
+;;                                                                  }
+;;                                                 return needResize;
+;;                                                 }
+
+;; function render(time) {
+;;                        time *= 0.001;
+
+;;                        if (resizeRendererToDisplaySize(renderer)) {
+;;                                                                    const canvas = renderer.domElement;
+;;                                                                    camera.aspect = canvas.clientWidth / canvas.clientHeight;
+;;                                                                    camera.updateProjectionMatrix();
+;;                                                                    }

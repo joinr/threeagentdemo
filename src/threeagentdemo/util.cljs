@@ -51,3 +51,8 @@
         [:instance {:object v}]
         [:sphere {:radius 5
                   :material {:color "white"}}]))))
+
+
+;;would like to define containers.
+
+(defn container [color contents])
