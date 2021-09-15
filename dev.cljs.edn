@@ -18,4 +18,5 @@
                 {:file "resources/svgloader.js"
                  :provides ["svgloader"]}]
  :libs ["resources/three.js"
-        "resources/three.svgloader.js"]}
+        "resources/three.svgloader.js"
+        "resources/yoga.js"]}
