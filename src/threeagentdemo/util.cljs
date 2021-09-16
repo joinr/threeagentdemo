@@ -17,11 +17,16 @@
 
 ;;SPRITES
 
+(def spritecache (atom {}))
+
 ;;https://threejs.org/docs/#api/en/objects/Sprite
 (defcomponent :sprite [{:keys [source]}]
-  (let [texture  (.load (three/TextureLoader.) source)
-        material (three/SpriteMaterial. #js{:map texture})]
-    (three/Sprite. material)))
+  (if-let [mat (get @spritecache source)]
+    (three/Sprite. mat)
+    (let [texture  (.load (three/TextureLoader.) source)
+          material (three/SpriteMaterial. #js{:map texture})
+          _        (swap! spritecache assoc source material)]
+      (three/Sprite. material))))
 
 (def ratio (device-pixel-ratio))
 

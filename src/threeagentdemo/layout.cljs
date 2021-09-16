@@ -382,8 +382,6 @@
   (do-node nd
            (.calculateLayout width height dir)))
 
-(defn walk-layout [nd])
-
 (defn layout-boxes [root-config dir xs]
   (let [root (->node root-config)
         rw   (root-config :Width)
@@ -392,11 +390,15 @@
       (.insertChild root (->node (select-keys  child [:Width :Height])) idx))
     (do-node root
              (.calculateLayout rw rh dir))
-    {:parent (.getComputedLayout root)
-     :children (->> root
-                    children
-                    (map (fn [node bounds]
-                           {:node node :bounds (.getComputedLayout bounds)}) xs))}))
+    (let [res  {:parent (.getComputedLayout root)
+                :children (->> root
+                               children
+                               (mapv (fn [node bounds]
+                                       {:data node :bounds (.getComputedLayout bounds)}) xs))}
+          ;;think missing this was causing a memory leak because we're in emscripten...
+          _   (doseq [c (children root)] (.free c))
+          _   (.free root)]
+      res)))
 
 ;;example layout: wraps the contents in a row.
 #_
