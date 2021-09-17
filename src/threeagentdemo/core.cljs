@@ -251,28 +251,35 @@
   (when-let [ent (-> @state :entities id)]
     [:sprite {:source (ent :icon)}]))
 
-(defn entities-at-home [type]
-  (let [s    @state
-        ids  (-> s :types (get type))
-        ents (s :entities)]
-    (map ents ids)))
+(defn entities-at-home
+  ([type s]
+   (let [ids  (-> s :types (get type))
+         ents (s :entities)]
+     (mapv ents ids)))
+  ([type] (entities-at-home type @state)))
 
-(defn icons-at-home [type]
-  (let [idx  (atom 0)
-        offset (fn [] (let [res @idx]
-                        (swap! idx inc)
-                        res))]
-    (->> (for [ent (entities-at-home type)]
-           [:sprite {:source (ent :icon)
-                     :position [(offset)  (ent :readiness) 0]}])
-         (into [:group]))))
+(defn icons-at-home
+  ([ents]
+   (println [:recomputing-icons])
+   (when (seq ents)
+     (let [idx  (atom 0)
+           offset (fn [] (let [res @idx]
+                           (swap! idx inc)
+                           res))]
+       (->> (for [ent ents]
+              [:sprite {:source (ent :icon)
+                        :position [(offset) (* (ent :readiness) 7) 0]}])
+            (into [:group]))))))
 
 ;; Root component render function
 (defn scene []
   (let [ticks @(th/cursor state [:ticks])
         font  @(th/cursor state [:font])
         sin (.sin js/Math (/ ticks 100))
-        cos (.cos js/Math (/ ticks 100))]
+        cos (.cos js/Math (/ ticks 100))
+        abcts (entities-at-home "ABCT" @state)
+        sbcts (entities-at-home "SBCT" @state)
+        ibcts (entities-at-home "IBCT" @state)]
     [:object
      #_[:ambient-light {:intensity 0.6}]
      [:object {:position [0 0 5]}
@@ -313,34 +320,24 @@
                :height   0.1
                :size     0.5}]]
       [:object {:position [-9 0 0]}
-       [racetrack "ABCT" 8
-        [:object {:position [-2.25 0.75 0]
-                  :scale    [0.4 0.4  1]}
-         (icons-at-home "ABCT")]]]
+       [racetrack "ABCT" 8]]
+      ;;have to place these the in top level a
+      [:object {:position [-11.75 0 -8.8]
+                :scale [0.4 0.4 1]}
+       [icons-at-home abcts]]
       [:object {:position [1.5 0 0]}
-       [racetrack "IBCT" 17
-        [:object {:position [-7 0.75 0]
-                  :scale    [0.4 0.4 1]}
-         (icons-at-home "IBCT")]]]
+       [racetrack "IBCT" 18]]
+      [:object {:position [-5 0 -8.8]
+                :scale    [0.4 0.4 1]}
+       [icons-at-home ibcts]]
       [:object {:position [11 0 0]}
-       [racetrack "SBCT" 5
-        [:object {:position [-3 0.75 0]
-                  :scale    [0.4 0.4  1]}
-         (icons-at-home "SBCT")]]]]
-     #_[translate [0 -3 -5]
-      [beside
-       [:box {:position [-1 -3 0] :dims [2 2 2] :material {:color "red"}}]
-       [:box {:position [1  -3 0] :dims [2 2 2] :material {:color "blue"}}]]]
-        #_[:svg {:source "tux.svg"}]
-     #_
-       [:object {:position [1.0 0 -4.0]
-                 :rotation [0 sin 0]} ; Rotate on Y axis based on :ticks
-        [:ambient-light {:intensity 0.8}]
-        [color-box "red" (* cos 10.0)] ; Don't forget to use square brackets!
-        ]
-       [:object {:rotation [1 sin 1]}
-        [:object {:position [(+ -5.0 sin) -2.0 -5.0]}
-         [row-of-boxes 10 "green"]]]
+          [racetrack "SBCT" 5]]
+      [:object {:position [9.5 0 -8.8]
+                :scale    [0.4 0.4  1]}
+       [icons-at-home sbcts]]]
+      [:object {:rotation [1 sin 1]}
+       [:object {:position [(+ -5.0 sin) -2.0 -5.0]}
+        [row-of-boxes 10 "green"]]]
 
        [:object {:position [0 0 -15]
                  :scale [40 40 1]}
@@ -377,7 +374,7 @@
 
 (def regions {:northcom 5
               :pacom    8
-              :eucom    30
+              :eucom    22
               :centcom  2})
 
 (defn tick-regions [contents]
@@ -402,8 +399,23 @@
         res)
       (update res :ticks inc)
       (assoc res :c-day (quot ticks 30)))))
+(def readiness-rate
+  {"AC" 0.003
+   "NG" 0.005})
+
 (defn tick-home [s]
-  ())
+  (let [entities (-> s :entities)
+        home     (-> s :locations (get "home"))
+        new-entities (->> home
+                          (reduce (fn [m id]
+                                    (update m id
+                                            (fn [e]
+                                              (let [readiness (e :readiness)
+                                                    new-readiness (+ readiness (readiness-rate (e :compo)))
+                                                    new-readiness (if (>= new-readiness 1.0) 0.0 new-readiness)]
+                                                (assoc e :readiness new-readiness)))))
+                                  entities))]
+   (assoc s :entities new-entities)))
 
 (defn init-entities! [ents]
   (let [emap    (into {}
@@ -420,7 +432,14 @@
      #_[v/vega-chart "ltn-plot" v/ltn-spec]]]
    [:div  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
                    :justify-content "space-between"}}
-    [three-canvas "root-scene" scene (fn [dt] (swap! ratom update :ticks inc) #_(swap! ratom on-tick))]]
+    [three-canvas "root-scene" scene (fn [dt] (swap! ratom (fn [s]
+                                                             (let [tickstate (update s :ticks inc)
+                                                                   ticks (tickstate :sticks)]
+                                                               tickstate
+                                                               (if (zero? (mod ticks 60))
+                                                                 (tick-home tickstate)
+                                                                 tickstate))))
+                                       #_(swap! ratom on-tick))]]
    [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
                           :justify-content "space-between"
                           :font-size "xxx-large"}}
@@ -439,7 +458,8 @@
         (when-not (@state :font)
           (<! (font/init!)))
         (when-not (@state :intitialized)
-          (init-entities! td/test-entities))
+          (let [one-of-each td/test-entities #_(->> td/test-entities (group-by :SRC) vals (map first))]
+            (init-entities! one-of-each )))
         (rdom/render [app state] (.getElementById js/document "app")))))
 
 ;; specify reload hook with ^;after-load metadata
