@@ -253,14 +253,16 @@
 
 (defn entities-at-home
   ([type s]
-   (let [ids  (-> s :types (get type))
+   (let [ids     (-> s :types (get type))
+         at-home (-> s :locations (get "home"))
+         ids     (clojure.set/intersection ids at-home)
          ents (s :entities)]
      (mapv ents ids)))
   ([type] (entities-at-home type @state)))
 
 (defn icons-at-home
   ([ents]
-   (println [:recomputing-icons])
+   ;;(println [:recomputing-icons]) ;;too many calls...
    (when (seq ents)
      (let [idx  (atom 0)
            offset (fn [] (let [res @idx]
@@ -335,9 +337,11 @@
       [:object {:position [9.5 0 -8.8]
                 :scale    [0.4 0.4  1]}
        [icons-at-home sbcts]]]
-      [:object {:rotation [1 sin 1]}
+
+     (when (@state :showbox)
+       [:object {:rotation [1 sin 1]}
        [:object {:position [(+ -5.0 sin) -2.0 -5.0]}
-        [row-of-boxes 10 "green"]]]
+        [row-of-boxes 10 "green"]]])
 
        [:object {:position [0 0 -15]
                  :scale [40 40 1]}
@@ -403,6 +407,29 @@
   {"AC" 0.003
    "NG" 0.005})
 
+(defn find-deploys [s]
+  (let [ deps       (filter (fn [[region n]]
+                              (pos? n))
+                            (s :slots))]
+    (when (seq deps)
+      (let [open-slots  (->> deps (map second) (reduce +))
+            deployables (->> s
+                             :entities
+                             vals
+                             (filter #(>= (% :readiness) 0.8))
+                             (take open-slots))]
+        (when (seq deployables)
+          (->> (reduce (fn [[remaining fills] [region n]]
+                    (let [ents (take n remaining)
+                          newfills (mapv (fn [e]
+                                           {:id (e :id) :location region :wait-time 270}) ents)]
+                      (if (< (count ents) n)
+                        (reduced [nil (concat fills newfills)])
+                        [(drop (count newfills) remaining) (concat fills newfills)])))
+                       [deployables nil] deps)
+               second))))))
+
+
 (defn tick-home [s]
   (let [entities (-> s :entities)
         home     (-> s :locations (get "home"))
@@ -415,7 +442,25 @@
                                                     new-readiness (if (>= new-readiness 1.0) 0.0 new-readiness)]
                                                 (assoc e :readiness new-readiness)))))
                                   entities))]
-   (assoc s :entities new-entities)))
+    (assoc s :entities new-entities)))
+
+(defn deploy-unit [s id location dt]
+  (let [ent (-> s :entities (get id))]
+    (-> s
+        (update-in [:locations "home"] disj id)
+        (update-in [:locations location] (fn [v] (conj (or v #{}) id)))
+        (update-in [:contents  location] (fn [v] (conj (or v []) [:sprite {:source (ent :icon)}])))
+        (update-in [:slots     location] dec)
+        (assoc-in  [:entities id :wait-time] dt))))
+
+(defn tick-deploys [s]
+  (if-let [deps (find-deploys s)]
+    (reduce (fn [acc {:keys [id location wait-time]}]
+              (deploy-unit acc id location wait-time))
+            s deps)
+    s))
+
+(defn tick-waits [s])
 
 (defn init-entities! [ents]
   (let [emap    (into {}
@@ -423,6 +468,9 @@
         contents (u/map-vals (fn [xs] (set (map :id xs)))  (group-by :location ents))
         types    (u/map-vals  (fn [xs] (set (map :id xs))) (group-by :SRC ents))]
     (swap! state assoc :entities emap :locations contents :types types)))
+
+(defn init-demand! [demand]
+  (swap! state assoc :demand demand :slots demand))
 
 (defn app [ratom]
   [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%"}}
@@ -436,8 +484,10 @@
                                                              (let [tickstate (update s :ticks inc)
                                                                    ticks (tickstate :sticks)]
                                                                tickstate
-                                                               (if (zero? (mod ticks 60))
-                                                                 (tick-home tickstate)
+                                                               (if (zero? (mod ticks 120))
+                                                                 (-> tickstate
+                                                                     tick-home
+                                                                     tick-deploys)
                                                                  tickstate))))
                                        #_(swap! ratom on-tick))]]
    [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
@@ -458,8 +508,10 @@
         (when-not (@state :font)
           (<! (font/init!)))
         (when-not (@state :intitialized)
-          (let [one-of-each td/test-entities #_(->> td/test-entities (group-by :SRC) vals (map first))]
-            (init-entities! one-of-each )))
+          (let [randomized (map (fn [{:keys [readiness] :as e}]
+                                   (assoc e :readiness (/  (rand) 2.0))) td/test-entities)]
+            (init-entities! randomized)
+            (init-demand! regions)))
         (rdom/render [app state] (.getElementById js/document "app")))))
 
 ;; specify reload hook with ^;after-load metadata
