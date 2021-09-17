@@ -7,6 +7,7 @@
             [threeagent.core :as th]))
 
 ;; Use reactive atom for storing state
-(defonce state (th/atom {:ticks 0
+(defonce state (th/atom {:animating true
+                         :ticks 0
                          :sphere 0
                          :ticking? false}))

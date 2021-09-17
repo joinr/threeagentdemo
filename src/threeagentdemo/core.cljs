@@ -10,11 +10,11 @@
    [threeagentdemo.util :as u]
    [threeagentdemo.layout :as layout]
    [threeagentdemo.threehelp :as threehelp]
+   [threeagentdemo.testdata :as td]
    [cljs.core.async :refer [chan put! >! <!]])
   (:require-macros [cljs.core.async :refer [go]]))
 
 (def ^:dynamic *bbox-color* "black")
-(def contents (th/atom []))
 
 ;;state now lives in threeagentdemo.state/state
 ;;but we refer to it locally, so api hasn't changed.
@@ -135,7 +135,7 @@
                   (let [nd (as-three c)
                         lbounds (local-bounds nd)]
                     {:node nd
-                     :Width (.-x lbounds)
+                     :Width  (.-x lbounds)
                      :Height (.-y lbounds)})))
         grouped (layout/layout-boxes {:Width width :Height height
                                       :JustifyContent :JUSTIFY_COUNT #_:JUSTIFY_CENTER
@@ -153,58 +153,198 @@
              [:object {:position [left top 0]}
               [:instance {:object threenode}]])))))
 
+;;this is hugely important.
+(def matcache (atom {}))
+(defn get-mat [color]
+  (if-let [meshmat (get @matcache color)]
+    meshmat
+    (let [res (js/THREE.MeshPhongMaterial. #js{:color "black"})
+          _   (swap! matcache assoc color res)]
+      res)))
+
+(defn northcom [font items]
+  [:object {:position [-10 0 -10]
+            :scale    [0.5 0.5 0.5]}
+   [:object {:position [-3 6 0]}
+    [:text {:text "NORTHCOM"
+            :material (get-mat "black")
+            :font font
+            :height 0.1
+            :size 0.5}]]
+   [:box {:width 10.5 :height 6 :material {:color "lightgreen"}
+          :position [0 4 -1]}]
+   [translate [0.5 2.5 0]
+    [container 10 6
+     items]]])
+
+(defn eucom [font items]
+  [:object {:position [-2 0 -10]
+            :scale    [0.5 0.5 0.5]}
+   [:object {:position [-3 6 0]}
+    [:text {:text "EUCOM"
+            :material (get-mat "black")
+            :font font
+            :height 0.1
+            :size 0.5}]]
+   [:box {:width 10.5 :height 12 :material {:color "lightgreen"}
+          :position [0 1 -1]}]
+   [translate [0.5 0.5 0]
+    [container 10 10
+     items]]])
+
+(defn centcom [font items]
+  [:object {:position [4 0 -10]
+            :scale    [0.5 0.5 0.5]}
+   [:object {:position [-3 6 0]}
+    [:text {:text "CENTCOM"
+            :material (get-mat "black")
+            :font font
+            :height 0.1
+            :size 0.5}]]
+   [:box {:width 10.5 :height 6 :material {:color "lightgreen"}
+          :position [0 4 -1]}]
+   [translate [0.5 0.5 0]
+    [container 10 10
+     items]]])
+
+(defn pacom [font items]
+  [:object {:position [10 0 -10]
+            :scale    [0.5 0.5 0.5]}
+   [:object {:position [-3 6 0]}
+    [:text {:text "PACOM"
+            :material (get-mat "black")
+            :font font
+            :height 0.1
+            :size 0.5}]]
+   [:box {:width 10.5 :height 6 :material {:color "lightgreen"}
+          :position [0 4 -1]}]
+   [translate [0.5 0.5 0]
+    [container 10 10 items]]])
+
+
+(defn racetrack [title width & [contents]]
+  (let [n width]
+    [:object {:position [0 0 -8]
+              :scale    [.8 .8 .8]}
+     [:plane {:width (+ width 0.1) :height 5.1 :material {:color "black"}
+              :position [0 2 -1.02]}]
+     [:plane {:width width :height 5 :material {:color "white"}
+              :position [0 2 -1.01]}]
+     [:plane {:width width :height 1 :material {:color "blue"}
+            :position [0 3 -1]}]
+     [:plane {:width width :height 1 :material {:color "lightgreen"}
+            :position [0 2 -1]}]
+     [:plane {:width width :height 1 :material {:color "yellow"}
+            :position [0 1 -1]}]
+     [:plane {:width width :height 1 :material {:color "lightyellow"}
+            :position [0 0 -1]}]
+     [:text {:position [-1 4.25 0.1]
+             :scale    [ 1 1 0.1]
+             :text title
+             :material (get-mat "black")
+             :font     (@state :font)
+             :height   0.1
+             :size     0.5}]
+     contents]))
+
+(defn entity-sprite [id]
+  (when-let [ent (-> @state :entities id)]
+    [:sprite {:source (ent :icon)}]))
+
+(defn entities-at-home [type]
+  (let [s    @state
+        ids  (-> s :types (get type))
+        ents (s :entities)]
+    (map ents ids)))
+
+(defn icons-at-home [type]
+  (let [idx  (atom 0)
+        offset (fn [] (let [res @idx]
+                        (swap! idx inc)
+                        res))]
+    (->> (for [ent (entities-at-home type)]
+           [:sprite {:source (ent :icon)
+                     :position [(offset)  (ent :readiness) 0]}])
+         (into [:group]))))
+
 ;; Root component render function
 (defn scene []
   (let [ticks @(th/cursor state [:ticks])
+        font  @(th/cursor state [:font])
         sin (.sin js/Math (/ ticks 100))
         cos (.cos js/Math (/ ticks 100))]
     [:object
-     [:ambient-light {:intensity 0.8}]
-     #_[:object {:position [10 20 -1]}
+     #_[:ambient-light {:intensity 0.6}]
+     [:object {:position [0 0 5]}
       [:point-light {:intensity 0.5}]]
-     [:object {:position [0 0 -10]
-               :scale    [0.5 0.5 0.5] #_[1 #_0.1 1 #_0.1 1]}
-      [:plane {:width 10 :height 10 :material {:color "lightgreen"}}]
-      [translate [0.5 0.5 0]
-       [container 10 10
-        @contents
-        #_(concat (repeat @contents [:sprite {:source "abct.png" }])
-                #_(take @contents
-                        (cycle
-                         [[:box {:width 1 :height 1 :material {:color "red"}}]
-                          [:box {:width 1 :height 1 :material {:color "blue"}}]
-                          [:box {:width 1 :height 1 :material {:color "green"}}]])))]]]
-     [translate [0 -3 -5]
+     [:object {:position [0 -6 5]}
+      [:point-light {:intensity 0.6}]]
+     [:group ;;container layer
+      [northcom font @(th/cursor state [:contents :northcom])]
+      [eucom    font @(th/cursor state [:contents :eucom])]
+      [centcom  font @(th/cursor state [:contents :centcom])]
+      [pacom    font @(th/cursor state [:contents :pacom])]]
+     [:group   {:position [0 -6.5 0]}
+      [:plane  {:position [0 1.05  -9]
+                :width 32 :height 5 :material {:color "white"}}]
+      [:group {:position [-12.75 0 -8.5] :scale [0.9 0.9 0.1]}
+       [:text {:position [0 0 0]
+               :text "C4"
+               :material (get-mat "black")
+               :font     (@state :font)
+               :height   0.1
+               :size     0.5}]
+       [:text {:position [0 0.85 0]
+               :text "C3"
+               :material (get-mat "black")
+               :font     (@state :font)
+               :height   0.1
+               :size     0.5}]
+       [:text {:position [0 1.7 0]
+              :text "C2"
+               :material (get-mat "black")
+               :font     (@state :font)
+               :height   0.1
+               :size     0.5}]
+       [:text {:position [0 2.505 0]
+               :text "C1"
+               :material (get-mat "black")
+               :font     (@state :font)
+               :height   0.1
+               :size     0.5}]]
+      [:object {:position [-9 0 0]}
+       [racetrack "ABCT" 8
+        [:object {:position [-2.25 0.75 0]
+                  :scale    [0.4 0.4  1]}
+         (icons-at-home "ABCT")]]]
+      [:object {:position [1.5 0 0]}
+       [racetrack "IBCT" 17
+        [:object {:position [-7 0.75 0]
+                  :scale    [0.4 0.4 1]}
+         (icons-at-home "IBCT")]]]
+      [:object {:position [11 0 0]}
+       [racetrack "SBCT" 5
+        [:object {:position [-3 0.75 0]
+                  :scale    [0.4 0.4  1]}
+         (icons-at-home "SBCT")]]]]
+     #_[translate [0 -3 -5]
       [beside
        [:box {:position [-1 -3 0] :dims [2 2 2] :material {:color "red"}}]
        [:box {:position [1  -3 0] :dims [2 2 2] :material {:color "blue"}}]]]
-     (when-let [font  @(th/cursor state [:font])]
-       [:object {:position [-2 -2 -5]}
-        (id :main-text
-            [:text {:text "HELLO WORLD"
-                    :material (js/THREE.MeshPhongMaterial. #js{:color "blue"})
-                    :font font
-                    :height 0.1
-                    :size 0.5}])
-        #_[:svg {:source "tux.svg"}]])
+        #_[:svg {:source "tux.svg"}]
      #_
        [:object {:position [1.0 0 -4.0]
                  :rotation [0 sin 0]} ; Rotate on Y axis based on :ticks
         [:ambient-light {:intensity 0.8}]
         [color-box "red" (* cos 10.0)] ; Don't forget to use square brackets!
         ]
-     #_
        [:object {:rotation [1 sin 1]}
         [:object {:position [(+ -5.0 sin) -2.0 -5.0]}
          [row-of-boxes 10 "green"]]]
-     #_
-       [:object {:position [-5 -2  -5]}
-        (id :sprite
-            [u/sprite {:source "abct.png" }])]
-     
+
        [:object {:position [0 0 -15]
                  :scale [40 40 1]}
-        (id :world [u/sprite {:source "1024px-BlankMap-World-Flattened.svg.png"}])]
+         [u/sprite {:source "1024px-BlankMap-World-Flattened.svg.png"}]]
      #_
        [:object {:position [-10 3 -10]}
         [:sphere {:radius   1
@@ -222,60 +362,75 @@
     (fn [this]
       (->> (threehelp/render f (rdom/dom-node this) {:render-params {:antialias true :resize true}
                                                      :on-before-render on-before-render})
-           (swap! state assoc :scene)))
+           #_(swap! state assoc :scene)))
+
     :component-did-update
     (fn [this]
       (->> (threehelp/render f (rdom/dom-node this) {:render-params {:antialias true :resize true}
                                                      :on-before-render on-before-render})
-           (swap! state assoc :scene)))
+
+           #_(swap! state assoc :scene)))
     #_#_:component-will-update
     (fn [this]
       (->> (threehelp/render f this {:render-params {:antialias true}})
            (swap! state assoc :scene)))}))
 
+(def regions {:northcom 5
+              :pacom    8
+              :eucom    30
+              :centcom  2})
 
+(defn tick-regions [contents]
+  (reduce-kv (fn [acc region xs]
+               (->> (if (> (count xs) (regions region))
+                      []
+                      (->> (conj  xs [:sprite {:source (rand-nth ["abct.png" "sbct.png" "ibct.png"])}])
+                           (sort-by (comp :source second))
+                           vec))
+                    (assoc acc region))) contents contents))
+
+;;for now, this is doing nothing since we have garbage problems.
+(def c-day (th/atom 0))
+
+#_
 (defn on-tick [s]
   (let [ticks (s :ticks)]
-    (when (zero? (mod ticks 34))
-      (swap! contents
-             (fn [xs]
-               (if (> (count xs) 30)
-                 []
-                 (->> (conj  xs [:sprite {:source (rand-nth ["abct.png" "sbct.png" "ibct.png"])}])
-                      (sort-by (comp :source second))
-                      vec)))))
-    (update s :ticks inc)))
+    (as-> s res
+      (if (and (res :animating)
+               (zero? (mod ticks 30)))
+        (update res :contents (fn [m] (tick-regions (or m  (zipmap (keys regions) (repeat []))))))
+        res)
+      (update res :ticks inc)
+      (assoc res :c-day (quot ticks 30)))))
+(defn tick-home [s]
+  ())
+
+(defn init-entities! [ents]
+  (let [emap    (into {}
+                    (map (fn [e] [(e :id) e])) ents)
+        contents (u/map-vals (fn [xs] (set (map :id xs)))  (group-by :location ents))
+        types    (u/map-vals  (fn [xs] (set (map :id xs))) (group-by :SRC ents))]
+    (swap! state assoc :entities emap :locations contents :types types)))
 
 (defn app [ratom]
   [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%"}}
+   [:div {:id "chart-root" :style {:display "flex"}}
+    [:div {:style {:flex "1" :width "100%"}}
+     [:p "Vega Chart"]
+     #_[v/vega-chart "ltn-plot" v/ltn-spec]]]
+   [:div  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
+                   :justify-content "space-between"}}
+    [three-canvas "root-scene" scene (fn [dt] (swap! ratom update :ticks inc) #_(swap! ratom on-tick))]]
    [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
                           :justify-content "space-between"
                           :font-size "xxx-large"}}
-    [:p {:style {:margin "0 auto" :text-align "center" }}
-     "Origin"]
     [:p {:id "c-day" :style {:margin "0 auto" :text-align "center" }}
-     "C-Day: "]
-    [:p {:style {:margin "0 auto" :text-align "center" }}
-     "Transit"]]
-   [:div  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
-                   :justify-content "space-between"}}
-    #_[:p "Canvas"]
-    [three-canvas "root-scene" scene (fn [dt] (swap! ratom on-tick))]]
-   [:div {:id "chart-root" :style {:display "flex"}}
-    [:div {:style {:flex "1" :width "45%"}}
-     [:p "Vega Chart"]
-     #_[v/vega-chart "flow-plot" v/line-equipment-spec]]
-    [:div {:style {:flex "0.1" :width "1%"}}]
-    [:div {:style {:flex "1" :width "45%"}}
-     [:p "Vega Chart"]
-     #_[v/vega-chart "ltn-plot" v/ltn-spec]]]])
+     ;;no idea why this causes a slow memory leak!
+     #_(str "C-Day:"  @c-day)
+     (str "C-Day:"  @c-day)
+     ]]])
 
-;;eventually migrate this to on-before-render, seems more
-;;idiomatic.
-#_(defn tick! []
-  (when-not (:ticking? @state)
-    (swap! state assoc :ticking? true)
-    (.setInterval js/window #(swap! state on-tick) 17)))
+
 
 ;; conditionally start your application based on the presence of an "app" element
 ;; this is particularly helpful for testing this ns without launching the app
@@ -283,19 +438,9 @@
   (go (do
         (when-not (@state :font)
           (<! (font/init!)))
-        #_(tick!)
-        (rdom/render [app state] (.getElementById js/document "app")
-                     #_
-                     (-> (th/render app
-                                    (.getElementById js/document "app")
-                                    #_{:on-before-render tick!})
-                         (setup-scene)))))
-  #_
-  (tick!)
-  #_
-  (rdom/render [app state] (.getElementById js/document "app"))
-  #_(->> (threehelp/render root #_(.-body js/document) {:render-params {:antialias true}})
-       (swap! state assoc :scene)))
+        (when-not (@state :intitialized)
+          (init-entities! td/test-entities))
+        (rdom/render [app state] (.getElementById js/document "app")))))
 
 ;; specify reload hook with ^;after-load metadata
 (defn ^:after-load on-reload []

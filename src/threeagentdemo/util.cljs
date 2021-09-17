@@ -7,6 +7,10 @@
 (defn device-pixel-ratio []
   (.-devicePixelRatio js/window))
 
+(defn map-vals [f m]
+  (reduce-kv (fn [acc k v]
+               (assoc acc k (f v))) {} m))
+
 ;;custom component creation...
 
 ;; const map = new THREE.TextureLoader().load( 'sprite.png' );
@@ -16,7 +20,7 @@
 
 
 ;;SPRITES
-
+;;much faster.
 (def spritecache (atom {}))
 
 ;;https://threejs.org/docs/#api/en/objects/Sprite

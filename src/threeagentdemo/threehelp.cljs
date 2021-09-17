@@ -64,6 +64,7 @@
 
 ;;responsive canvas sizing.
 
+
 (defn resize-renderer-to-display-size [renderer]
   (let [canvas (.-domElement renderer)
         pixel-ratio (.-devicePixelRatio js/window)
@@ -77,6 +78,7 @@
       (.setSize renderer width height false)
       (reset! resized false))
     need-resize))
+
 
 (defn resize-on-render [renderer camera]
   (when (resize-renderer-to-display-size renderer)
@@ -104,7 +106,7 @@
                                    dom-root nil
                                    canvas camera cameras
                                    clock renderer on-before-render-cb on-after-render-cb)
-           animator (if (render-params :resize)
+          animator (if (render-params :resize)
                       (fn []
                         (resize-on-render renderer camera)
                         (animate context))
