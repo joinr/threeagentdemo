@@ -11,6 +11,7 @@
    [threeagentdemo.layout :as layout]
    [threeagentdemo.threehelp :as threehelp]
    [threeagentdemo.testdata :as td]
+   [threeagentdemo.vega :as v]
    [cljs.core.async :refer [chan put! >! <!]])
   (:require-macros [cljs.core.async :refer [go]]))
 
@@ -254,7 +255,7 @@
 (defn entities-at-home
   ([type s]
    (let [ids     (-> s :types (get type))
-         at-home (-> s :locations (get "home"))
+         at-home (-> s :locations (get :home))
          ids     (clojure.set/intersection ids at-home)
          ents (s :entities)]
      (mapv ents ids)))
@@ -391,18 +392,8 @@
                     (assoc acc region))) contents contents))
 
 ;;for now, this is doing nothing since we have garbage problems.
-(def c-day (th/atom 0))
+(def c-day (th/cursor state [:c-day]))
 
-#_
-(defn on-tick [s]
-  (let [ticks (s :ticks)]
-    (as-> s res
-      (if (and (res :animating)
-               (zero? (mod ticks 30)))
-        (update res :contents (fn [m] (tick-regions (or m  (zipmap (keys regions) (repeat []))))))
-        res)
-      (update res :ticks inc)
-      (assoc res :c-day (quot ticks 30)))))
 (def readiness-rate
   {"AC" 0.003
    "NG" 0.005})
@@ -416,7 +407,8 @@
             deployables (->> s
                              :entities
                              vals
-                             (filter #(>= (% :readiness) 0.8))
+                             (filter #(and (>= (% :readiness) 0.8)
+                                           (not (pos? (% :wait-time 0))))) ;;not deployed...
                              (take open-slots))]
         (when (seq deployables)
           (->> (reduce (fn [[remaining fills] [region n]]
@@ -432,7 +424,7 @@
 
 (defn tick-home [s]
   (let [entities (-> s :entities)
-        home     (-> s :locations (get "home"))
+        home     (-> s :locations (get :home))
         new-entities (->> home
                           (reduce (fn [m id]
                                     (update m id
@@ -447,11 +439,14 @@
 (defn deploy-unit [s id location dt]
   (let [ent (-> s :entities (get id))]
     (-> s
-        (update-in [:locations "home"] disj id)
+        (update-in [:locations :home] disj id)
         (update-in [:locations location] (fn [v] (conj (or v #{}) id)))
-        (update-in [:contents  location] (fn [v] (conj (or v []) [:sprite {:source (ent :icon)}])))
+        (update-in [:contents  location] (fn [v] (conj (or v [])
+                                                       ^{:id id}
+                                                         [:sprite {:source (ent :icon)}])))
         (update-in [:slots     location] dec)
-        (assoc-in  [:entities id :wait-time] dt))))
+        (update-in [:entities id] assoc  :wait-time dt :location location)
+        (assoc-in [:waiting id] dt))))
 
 (defn tick-deploys [s]
   (if-let [deps (find-deploys s)]
@@ -460,14 +455,45 @@
             s deps)
     s))
 
-(defn tick-waits [s])
+(defn send-home [s id]
+  (let [ent      (-> s :entities (get id))
+        location (ent :location)]
+      (-> s
+          (update-in [:locations :home] conj id)
+          (update-in [:locations location] (fn [v] (disj (or v #{}) id)))
+          ;;lame linear scan...
+          (update-in [:contents  location] (fn [v] (vec (remove  (fn [v]
+                                                                   (= (-> v meta :id) id))
+                                                            (or v [])))))
+          (update-in [:slots     location] inc)
+          (update-in [:entities id] assoc :wait-time 0 :readiness 0)
+          (update-in [:waiting] dissoc id))))
+
+(defn tick-waits [s]
+  (let [waits (s :waiting)]
+    (reduce-kv (fn [acc id dt]
+                 (if (zero? dt)
+                   (send-home acc id)
+                   (update-in acc [:waiting id] dec)))
+               s waits)))
+
+(defn tick-scene [s]
+  (let [tickstate (update s :ticks inc)
+        ticks (tickstate :ticks)]
+    (if (zero? (mod ticks 2))
+      (-> tickstate
+          (update :c-day + 0.5)
+          tick-home
+          tick-waits
+          tick-deploys)
+      tickstate)))
 
 (defn init-entities! [ents]
   (let [emap    (into {}
                     (map (fn [e] [(e :id) e])) ents)
         contents (u/map-vals (fn [xs] (set (map :id xs)))  (group-by :location ents))
         types    (u/map-vals  (fn [xs] (set (map :id xs))) (group-by :SRC ents))]
-    (swap! state assoc :entities emap :locations contents :types types)))
+    (swap! state assoc :entities emap :locations contents :types types :waiting {})))
 
 (defn init-demand! [demand]
   (swap! state assoc :demand demand :slots demand))
@@ -476,27 +502,17 @@
   [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%"}}
    [:div {:id "chart-root" :style {:display "flex"}}
     [:div {:style {:flex "1" :width "100%"}}
-     [:p "Vega Chart"]
-     #_[v/vega-chart "ltn-plot" v/ltn-spec]]]
+     [v/vega-chart "ltn-plot" v/ltn-spec]]]
    [:div  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
                    :justify-content "space-between"}}
-    [three-canvas "root-scene" scene (fn [dt] (swap! ratom (fn [s]
-                                                             (let [tickstate (update s :ticks inc)
-                                                                   ticks (tickstate :sticks)]
-                                                               tickstate
-                                                               (if (zero? (mod ticks 120))
-                                                                 (-> tickstate
-                                                                     tick-home
-                                                                     tick-deploys)
-                                                                 tickstate))))
+    [three-canvas "root-scene" scene (fn [dt] (swap! ratom tick-scene)
                                        #_(swap! ratom on-tick))]]
    [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
                           :justify-content "space-between"
                           :font-size "xxx-large"}}
     [:p {:id "c-day" :style {:margin "0 auto" :text-align "center" }}
      ;;no idea why this causes a slow memory leak!
-     #_(str "C-Day:"  @c-day)
-     (str "C-Day:"  @c-day)
+     (str "C-Day:"  (int @c-day))
      ]]])
 
 
@@ -511,7 +527,9 @@
           (let [randomized (map (fn [{:keys [readiness] :as e}]
                                    (assoc e :readiness (/  (rand) 2.0))) td/test-entities)]
             (init-entities! randomized)
-            (init-demand! regions)))
+            (init-demand! regions)
+            ))
+        (swap! state assoc :c-day 0)
         (rdom/render [app state] (.getElementById js/document "app")))))
 
 ;; specify reload hook with ^;after-load metadata

@@ -1,4 +1,4 @@
-(ns cesiumdemo.vega
+(ns threeagentdemo.vega
   (:require  cljsjs.vega
              cljsjs.vega-lite
              cljsjs.vega-embed
