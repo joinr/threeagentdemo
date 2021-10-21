@@ -1,0 +1,27 @@
+;; ^{:watch-dirs ["test" "src"]
+;;   :css-dirs ["resources/public/css"]
+;;   :auto-testing true
+;;   }
+
+;;alters the url to serve from.
+;;^{:open-url "http://localhost:[[server-port]]/admin.html"}
+{:main threeagentdemo.core
+ :output-to  "resources/public/js/app.js"
+ :output-dir "resources/public/js/dev-out"
+ :asset-path "js/dev-out"
+ :optimizations :advanced
+ :infer-externs true
+ :pseudo-names true
+ :pretty-print true
+ :language-in :es-next
+ ;;:npm-deps {:three "0.131.3 "}
+ #_#_
+ :foreign-libs [#_{:file "resources/three.js"
+                   :file-min "resources/three.min.js"
+                   :provides ["three"]}
+                #_
+                {:file "resources/svgloader.js"
+                 :provides ["svgloader"]}]
+ :libs ["resources/three.js"
+        "resources/three.svgloader.js"
+        "resources/yoga.js"]}

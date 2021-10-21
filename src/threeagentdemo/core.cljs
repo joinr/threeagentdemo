@@ -366,9 +366,9 @@
                                                      :on-before-render on-before-render})
            #_(swap! state assoc :scene)))
 
-    :component-did-update
+    #_#_:component-did-update
     (fn [this]
-      (->> (threehelp/render f (rdom/dom-node this) {:render-params {:antialias true :resize true}
+      (->> (threehelp/render f (rdom/dom-node this) {:render-params {:antialias true :resize false #_true}
                                                      :on-before-render on-before-render})
 
            #_(swap! state assoc :scene)))
