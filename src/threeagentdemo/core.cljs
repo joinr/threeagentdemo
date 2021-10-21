@@ -463,12 +463,13 @@
 
 (defn tick-deploys [s]
   (if-let [deps (find-deploys s)]
-    (as-> s newstate
-      (reduce (fn [acc {:keys [id location wait-time]}]
-                (deploy-unit acc id location wait-time))
-              newstate deps)
-      (assoc-in newstate [:stats :deployed :Missing] (missed-demand newstate)))
+    (reduce (fn [acc {:keys [id location wait-time]}]
+              (deploy-unit acc id location wait-time))
+            s deps)
     s))
+
+(defn tick-missing [s]
+  (assoc-in s [:stats :deployed :Missing] (missed-demand s)))
 
 (defn send-home [s id]
   (let [ent      (-> s :entities (get id))
@@ -504,7 +505,8 @@
             (update :c-day + 1)
             tick-home
             tick-waits
-            tick-deploys)
+            tick-deploys
+            tick-missing)
         tickstate))
     s))
 
@@ -582,7 +584,7 @@
     (fn []
       [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%"}}
        [:div {:id "chart-root" :style {:display "flex"}}
-        [:div {:style {:flex "1" :width "100%"}}
+        [:div {:style {:flex "0.95" :width "95%"}}
          [v/vega-chart "fill-plot" v/fill-spec]]]
        [:div  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
                        :justify-content "space-between"}}
