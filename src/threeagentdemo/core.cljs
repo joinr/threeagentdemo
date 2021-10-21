@@ -12,7 +12,7 @@
    [threeagentdemo.threehelp :as threehelp]
    [threeagentdemo.testdata :as td]
    [threeagentdemo.vega :as v]
-   [cljs.core.async :refer [chan put! >! <!]])
+   [cljs.core.async :as a :refer [chan put! >! <! close!]])
   (:require-macros [cljs.core.async :refer [go]]))
 
 (def ^:dynamic *bbox-color* "black")
@@ -297,31 +297,31 @@
      [:group   {:position [0 -6.5 0]}
       [:plane  {:position [0 1.05  -9]
                 :width 32 :height 5 :material {:color "white"}}]
-      [:group {:position [-12.75 0 -8.5] :scale [0.9 0.9 0.1]}
-       [:text {:position [0 0 0]
+      [:group {:position [-12.85 #_-12.75 -0.3 -8.5] :scale [0.9 0.9 0.1]}
+       #_[:text {:position [0 0 0]
                :text "C4"
                :material (get-mat "black")
                :font     (@state :font)
                :height   0.1
-               :size     0.5}]
+               :size     0.4}]
        [:text {:position [0 0.85 0]
-               :text "C3"
+               :text "MOD" #_"C3"
                :material (get-mat "black")
                :font     (@state :font)
                :height   0.1
-               :size     0.5}]
+               :size     0.4}]
        [:text {:position [0 1.7 0]
-              :text "C2"
+              :text "TRN" #_"C2"
                :material (get-mat "black")
                :font     (@state :font)
                :height   0.1
-               :size     0.5}]
+               :size     0.4}]
        [:text {:position [0 2.505 0]
-               :text "C1"
+               :text "MSN" #_"C1"
                :material (get-mat "black")
                :font     (@state :font)
                :height   0.1
-               :size     0.5}]]
+               :size     0.4}]]
       [:object {:position [-9 0 0]}
        [racetrack "ABCT" 8]]
       ;;have to place these the in top level a
@@ -407,9 +407,10 @@
             deployables (->> s
                              :entities
                              vals
-                             (filter #(and (>= (% :readiness) 0.8)
+                             (filter #(and (>= (% :readiness) 0.7)
                                            (not (pos? (% :wait-time 0))))) ;;not deployed...
-                             (take open-slots))]
+                             (take open-slots)
+                             (sort-by #(- (% :readiness))))]
         (when (seq deployables)
           (->> (reduce (fn [[remaining fills] [region n]]
                     (let [ents (take n remaining)
@@ -436,8 +437,16 @@
                                   entities))]
     (assoc s :entities new-entities)))
 
+(defn naive-c-rating [ent]
+  (let [r (ent :readiness)]
+    (cond (>= r 0.75) :C1
+          (>= r 0.5)  :C2
+          (>= r 0.25) :C3
+          :else :C4)))
+
 (defn deploy-unit [s id location dt]
-  (let [ent (-> s :entities (get id))]
+  (let [ent (-> s :entities (get id))
+        c-rating (naive-c-rating ent)]
     (-> s
         (update-in [:locations :home] disj id)
         (update-in [:locations location] (fn [v] (conj (or v #{}) id)))
@@ -446,18 +455,25 @@
                                                          [:sprite {:source (ent :icon)}])))
         (update-in [:slots     location] dec)
         (update-in [:entities id] assoc  :wait-time dt :location location)
+        (update-in [:stats :deployed c-rating] inc)
         (assoc-in [:waiting id] dt))))
+
+(defn missed-demand [s]
+  (->> s :slots vals (filter pos?) (reduce +)))
 
 (defn tick-deploys [s]
   (if-let [deps (find-deploys s)]
-    (reduce (fn [acc {:keys [id location wait-time]}]
-              (deploy-unit acc id location wait-time))
-            s deps)
+    (as-> s newstate
+      (reduce (fn [acc {:keys [id location wait-time]}]
+                (deploy-unit acc id location wait-time))
+              newstate deps)
+      (assoc-in newstate [:stats :deployed :Missing] (missed-demand newstate)))
     s))
 
 (defn send-home [s id]
   (let [ent      (-> s :entities (get id))
-        location (ent :location)]
+        location (ent :location)
+        c-rating (naive-c-rating ent)]
       (-> s
           (update-in [:locations :home] conj id)
           (update-in [:locations location] (fn [v] (disj (or v #{}) id)))
@@ -467,6 +483,7 @@
                                                             (or v [])))))
           (update-in [:slots     location] inc)
           (update-in [:entities id] assoc :wait-time 0 :readiness 0)
+          (update-in [:stats :deployed c-rating] dec)
           (update-in [:waiting] dissoc id))))
 
 (defn tick-waits [s]
@@ -478,42 +495,113 @@
                s waits)))
 
 (defn tick-scene [s]
-  (let [tickstate (update s :ticks inc)
-        ticks (tickstate :ticks)]
-    (if (zero? (mod ticks 2))
-      (-> tickstate
-          (update :c-day + 0.5)
-          tick-home
-          tick-waits
-          tick-deploys)
-      tickstate)))
+  (if (and (s :animating)
+           (<= (s :c-day) (s :tstop)))
+    (let [tickstate (update s :ticks inc)
+          ticks (tickstate :ticks)]
+      (if (zero? (mod ticks 2))
+        (-> tickstate
+            (update :c-day + 1)
+            tick-home
+            tick-waits
+            tick-deploys)
+        tickstate))
+    s))
 
 (defn init-entities! [ents]
   (let [emap    (into {}
                     (map (fn [e] [(e :id) e])) ents)
         contents (u/map-vals (fn [xs] (set (map :id xs)))  (group-by :location ents))
         types    (u/map-vals  (fn [xs] (set (map :id xs))) (group-by :SRC ents))]
-    (swap! state assoc :entities emap :locations contents :types types :waiting {})))
+    (swap! state assoc :entities emap :locations contents :types types :waiting {} :contents {})))
 
 (defn init-demand! [demand]
   (swap! state assoc :demand demand :slots demand))
 
+(defn play! []
+  (swap! state assoc :animating true))
+
+(defn stop! []
+  (swap! state assoc :animating false))
+
+(defn watch-until [id atm f]
+  (let [res (chan)]
+    (add-watch atm id
+               (fn [_ _ _ m]
+                 (when-let [v (f m)]
+                   (do (put! res v)
+                       (close! res)
+                       (remove-watch atm id)))))
+    res))
+
+(defn init-state! []
+  (let [randomized (map (fn [{:keys [readiness] :as e}]
+                          (assoc e :readiness (rand) #_(/  (rand) 2.0))) td/test-entities)
+        tstart 0
+        tstop  1000]
+    (init-entities! randomized)
+    (init-demand! regions)
+    (swap! state assoc
+           :c-day 0
+           :tstart tstart
+           :tstop  tstop
+           :stats {:deployed {:C1 0
+                              :C2 0
+                              :C3 0
+                              :Missing 0}})
+    ;;could be cleaner.  revisit this.
+    (watch-until :fill-plot-exists
+                 threeagentdemo.vega/charts
+                 (fn [m]
+                   (when (m :fill-plot-view)
+                     (v/push-extents! :fill-plot-view tstart tstop))))))
+
+(defn reset-state! []
+  (swap! state assoc :animating false)
+  (init-state!))
+
+(defn daily-stats [t]
+  (let [stats (get-in @state [:stats :deployed])
+        {:keys [C1 C2 C3 Missing]} stats]
+    #js[#js{:c-day t :trend "C1" :value C1}
+        #js{:c-day t :trend "C2" :value C2}
+        #js{:c-day t :trend "C3" :value C3}
+        #js{:c-day t :trend "Missing" :value Missing}]))
+
+(defn plot-watch! []
+  (add-watch c-day :plotting
+               (fn [k r oldt newt]
+                 (cond (< newt oldt)
+                       (do (v/rewind-samples! :fill-plot-view "c-day" newt))
+                       (> newt oldt)
+                       (do (v/push-samples!   :fill-plot-view (daily-stats newt)))
+                       :else nil))))
+
 (defn app [ratom]
-  [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%"}}
-   [:div {:id "chart-root" :style {:display "flex"}}
-    [:div {:style {:flex "1" :width "100%"}}
-     [v/vega-chart "ltn-plot" v/ltn-spec]]]
-   [:div  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
-                   :justify-content "space-between"}}
-    [three-canvas "root-scene" scene (fn [dt] (swap! ratom tick-scene)
-                                       #_(swap! ratom on-tick))]]
-   [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
-                          :justify-content "space-between"
-                          :font-size "xxx-large"}}
-    [:p {:id "c-day" :style {:margin "0 auto" :text-align "center" }}
-     ;;no idea why this causes a slow memory leak!
-     (str "C-Day:"  (int @c-day))
-     ]]])
+  (let [render-scene! (fn [dt] (swap! ratom tick-scene))]
+    (fn []
+      [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%"}}
+       [:div {:id "chart-root" :style {:display "flex"}}
+        [:div {:style {:flex "1" :width "100%"}}
+         [v/vega-chart "fill-plot" v/fill-spec]]]
+       [:div  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
+                       :justify-content "space-between"}}
+        [three-canvas "root-scene" scene render-scene!
+         #_(fn [dt] (swap! ratom tick-scene))]]
+       [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
+                              :justify-content "space-between"
+                              :font-size "xxx-large"}}
+        [:p {:id "c-day" :style {:margin "0 auto" :text-align "center" }}
+         ;;no idea why this causes a slow memory leak!
+         (str "C-Day:"  (int @c-day))
+         ]]
+       [:div.flexControlPanel {:style {:display "flex" :width "100%" :height "auto"}}
+        [:button.cesium-button {:style   {:flex "1"} :id "play" :type "button" :on-click #(play!)}
+         "play"]
+        [:button.cesium-button {:style {:flex "1"} :id "stop" :type "button" :on-click #(stop!)}
+         "stop"]
+        [:button.cesium-button {:style  {:flex "1"} :id "reset" :type "button" :on-click #(reset-state!)}
+         "reset"]]])))
 
 
 
@@ -524,13 +612,9 @@
         (when-not (@state :font)
           (<! (font/init!)))
         (when-not (@state :intitialized)
-          (let [randomized (map (fn [{:keys [readiness] :as e}]
-                                   (assoc e :readiness (/  (rand) 2.0))) td/test-entities)]
-            (init-entities! randomized)
-            (init-demand! regions)
-            ))
-        (swap! state assoc :c-day 0)
-        (rdom/render [app state] (.getElementById js/document "app")))))
+          (init-state!))
+        (rdom/render [app state] (.getElementById js/document "app"))
+        (plot-watch!))))
 
 ;; specify reload hook with ^;after-load metadata
 (defn ^:after-load on-reload []

@@ -103,7 +103,7 @@
                 "resize" true
                  "contains" "padding"
                  }
-    "width" #_"container" 300, "height" #_"container" 200,
+    "width" "container"  "height" "container"
     "data"  {"name"   "table"
              ;"values" init-data
              },
@@ -276,6 +276,60 @@
                             :legend  {:direction "horizontal"
                                       :orient "bottom"
                                       :layout {:bottom {:anchor "middle"}}}}}}
+      (merge dark-theme)
+      #_clj->js))
+
+
+(def fill-spec
+  (-> {:width "container" :height 100;;:width 600, :height 200,
+       "autosize" {"type" "pad",
+                   "resize" true ;;maybe revisit this.
+                   "contains" "padding"}
+       :title {:text "Fill Over Time"
+               :fontSize 22}
+       :params [{:name "xmin", :value 0}
+                {:name "xmax", :value 1}
+                {:name "lineColor" :value "#5effff"}
+                {:name "ruleColor" :value "rgba(255,255,255,1)"}]
+       :data
+       {:name "table"},
+       :layer [{:mark "area" #_"line",
+                :encoding  {:x  {:field "c-day" :type "quantitative"
+                                 :axis {:title "C-Day"
+                                        :titleFontSize 22
+                                        :labelFontSize 16}
+                                 :scale {:domain [{:expr "xmin"} {:expr "xmax"}]
+                                         :nice false}},
+                            :y  {:field "value"
+                                 :aggregate "sum"
+                                 :axis {:title "Units Deployed"
+                                        :titleFontSize 22
+                                        :labelFontSize 16}
+                                 :type "quantitative"
+                                 #_#_:scale {:domain [0.0 1.0]}},
+                            :color  {:field "trend",
+                                     :type "nominal"
+                                     :scale  {:domain ["Missing" "C3" "C2"  "C1"]
+                                              :range  ["black"   "yellow" "lightgreen" "blue"]}
+                                     :legend  {:direction "horizontal"
+                                               :orient "bottom"
+                                               :layout {:bottom {:anchor "middle"}}
+                                               #_#_:labelExpr "{'ltn': 'Late-to-Need'}[datum.label]"
+                                               :labelFontSize 16
+                                               :symbolSize 200
+                                               :title nil}}
+                            :size {:value 5}}}
+               #_{:mark "rule",
+                :encoding {:x    {:field "c-day" :aggregate "max"}
+                           :y    {:datum 0}
+                           :y2   {:field "value" :aggregate "max"
+                                  :type "quantitative"
+                                  #_#_:scale {:domain [0.0 1.0]} }
+                           :size {:value 5}
+                           :strokeCap {:value "square"}
+                           :opacity {:value 0.35}
+                           :color {:value {:expr "ruleColor"}}
+                           }}]}
       (merge dark-theme)
       #_clj->js))
 
