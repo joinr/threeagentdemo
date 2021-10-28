@@ -9,7 +9,7 @@
  :output-to  "resources/public/js/app.js"
  :output-dir "resources/public/js/dev-out"
  :asset-path "js/dev-out"
- :optimizations :advanced
+ :optimizations :simple
  :infer-externs true
  :pseudo-names true
  :pretty-print true

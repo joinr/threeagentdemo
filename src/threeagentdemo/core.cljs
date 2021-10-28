@@ -139,7 +139,7 @@
                      :Width  (.-x lbounds)
                      :Height (.-y lbounds)})))
         grouped (layout/layout-boxes {:Width width :Height height
-                                      :JustifyContent :JUSTIFY_COUNT #_:JUSTIFY_CENTER
+                                      :JustifyContent :JUSTIFY_CENTER
                                       :FlexDirection  :FLEX_DIRECTION_ROW
                                       :FlexWrap       :WRAP_WRAP
                                       :AlignContent   :ALIGN_FLEX_END}
@@ -172,7 +172,7 @@
             :font font
             :height 0.1
             :size 0.5}]]
-   [:box {:width 10.5 :height 6 :material {:color "lightgreen"}
+   [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
           :position [0 4 -1]}]
    [translate [0.5 2.5 0]
     [container 10 6
@@ -187,7 +187,7 @@
             :font font
             :height 0.1
             :size 0.5}]]
-   [:box {:width 10.5 :height 12 :material {:color "lightgreen"}
+   [:box {:width 10.5 :height 12 :material {:color "lightgrey"}
           :position [0 1 -1]}]
    [translate [0.5 0.5 0]
     [container 10 10
@@ -202,7 +202,7 @@
             :font font
             :height 0.1
             :size 0.5}]]
-   [:box {:width 10.5 :height 6 :material {:color "lightgreen"}
+   [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
           :position [0 4 -1]}]
    [translate [0.5 0.5 0]
     [container 10 10
@@ -217,7 +217,7 @@
             :font font
             :height 0.1
             :size 0.5}]]
-   [:box {:width 10.5 :height 6 :material {:color "lightgreen"}
+   [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
           :position [0 4 -1]}]
    [translate [0.5 0.5 0]
     [container 10 10 items]]])
@@ -274,6 +274,13 @@
                         :position [(offset) (* (ent :readiness) 7) 0]}])
             (into [:group]))))))
 
+(defn missing-items [n]
+  (repeat n [:sprite {:source "empty.png"}]))
+
+(defn contents [location]
+  (vec (concat @(th/cursor state [:contents location])
+               (missing-items @(th/cursor state [:slots location])))))
+
 ;; Root component render function
 (defn scene []
   (let [ticks @(th/cursor state [:ticks])
@@ -290,10 +297,10 @@
      [:object {:position [0 -6 5]}
       [:point-light {:intensity 0.6}]]
      [:group ;;container layer
-      [northcom font @(th/cursor state [:contents :northcom])]
-      [eucom    font @(th/cursor state [:contents :eucom])]
-      [centcom  font @(th/cursor state [:contents :centcom])]
-      [pacom    font @(th/cursor state [:contents :pacom])]]
+      [northcom font (contents :northcom) #_@(th/cursor state [:contents :northcom])]
+      [eucom    font (contents :eucom) #_@(th/cursor state [:contents :eucom])]
+      [centcom  font (contents :centcom) #_@(th/cursor state [:contents :centcom])]
+      [pacom    font (contents :pacom) #_@(th/cursor state [:contents :pacom])]]
      [:group   {:position [0 -6.5 0]}
       [:plane  {:position [0 1.05  -9]
                 :width 32 :height 5 :material {:color "white"}}]
@@ -444,15 +451,41 @@
           (>= r 0.25) :C3
           :else :C4)))
 
+(defn insert-by [v f itm]
+  (if-not (empty? v)
+    (->> (conj v itm)
+         (sort-by f)
+         vec)
+    [itm]))
+
+(def c-icons
+  {"abct.png" {:C1 "abct-c1.png"
+               :C2 "abct-c2.png"
+               :C3 "abct-c3.png"
+               }
+   "sbct.png" {:C1 "sbct-c1.png"
+               :C2 "sbct-c2.png"
+               :C3 "sbct-c3.png"
+               }
+   "ibct.png" {:C1 "ibct-c1.png"
+               :C2 "ibct-c2.png"
+               :C3 "ibct-c3.png"
+               }})
+
 (defn deploy-unit [s id location dt]
   (let [ent (-> s :entities (get id))
-        c-rating (naive-c-rating ent)]
+        c-rating (naive-c-rating ent)
+        icon (ent :icon)
+        c-icon (or (get-in c-icons [icon c-rating])
+                   (throw (ex-info "unknown sprite!" {:in [icon c-rating]})))]
     (-> s
         (update-in [:locations :home] disj id)
         (update-in [:locations location] (fn [v] (conj (or v #{}) id)))
-        (update-in [:contents  location] (fn [v] (conj (or v [])
-                                                       ^{:id id}
-                                                         [:sprite {:source (ent :icon)}])))
+        (update-in [:contents  location] (fn [v]
+                                           (insert-by (or v [])
+                                                      (fn [itm] (-> itm second :source))
+                                                      ^{:id id}
+                                                      [:sprite {:source c-icon #_(ent :icon)}])))
         (update-in [:slots     location] dec)
         (update-in [:entities id] assoc  :wait-time dt :location location)
         (update-in [:stats :deployed c-rating] inc)
@@ -595,7 +628,7 @@
                               :font-size "xxx-large"}}
         [:p {:id "c-day" :style {:margin "0 auto" :text-align "center" }}
          ;;no idea why this causes a slow memory leak!
-         (str "C-Day:"  (int @c-day))
+         (str "Day:"  (int @c-day))
          ]]
        [:div.flexControlPanel {:style {:display "flex" :width "100%" :height "auto"}}
         [:button.cesium-button {:style   {:flex "1"} :id "play" :type "button" :on-click #(play!)}

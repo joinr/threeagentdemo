@@ -295,7 +295,7 @@
        {:name "table"},
        :layer [{:mark "area" #_"line",
                 :encoding  {:x  {:field "c-day" :type "quantitative"
-                                 :axis {:title "C-Day"
+                                 :axis {:title "Day"
                                         :titleFontSize 22
                                         :labelFontSize 16}
                                  :scale {:domain [{:expr "xmin"} {:expr "xmax"}]

@@ -9,5 +9,4 @@
 ;; Use reactive atom for storing state
 (defonce state (th/atom {:animating true
                          :ticks 0
-                         :sphere 0
-                         :ticking? false}))
+                         :sphere 0}))
