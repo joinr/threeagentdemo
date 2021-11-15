@@ -6,7 +6,8 @@
              [promesa.core :as p]
              [reagent.core :as r]
              [cljs-bean.core :refer [bean ->clj ->js]]
-             [clojure.core.async :as a]))
+             [clojure.core.async :as a]
+             [threeagentdemo.util :as u]))
 
 (defn- wrap-chart-constructor
   [chart]
@@ -309,8 +310,9 @@
                                  #_#_:scale {:domain [0.0 1.0]}},
                             :color  {:field "trend",
                                      :type "nominal"
-                                     :scale  {:domain ["Missing" "C3" "C2"  "C1"]
-                                              :range  ["black"   "yellow" "lightgreen" "blue"]}
+                                     :scale  {:domain ["Missing" "C5" "C4" "C3" "C2"  "C1"]
+                                              :range  ["black"   (u/c->hex :C5) (u/c->hex :C4)
+                                                       (u/c->hex :C3) (u/c->hex :C2) (u/c->hex :C1)]}
                                      :legend  {:direction "horizontal"
                                                :orient "bottom"
                                                :layout {:bottom {:anchor "middle"}}

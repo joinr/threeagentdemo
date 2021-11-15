@@ -65,3 +65,47 @@
 ;;would like to define containers.
 
 (defn container [color contents])
+
+
+(def colors->rgb
+  {:dark-green   [14  152  95]
+   :light-green  [102 204   0]
+   :amber        [255 201  64]
+   :light-red    [240 84   84]
+   :blue         [0   0   255]
+   ;;older colors
+   })
+
+(def colors->hex
+  {:dark-green  "#0E985F"
+   :light-green "#66cc00"
+   :amber       "#ffc940"
+   :light-red   "#f05454"
+   :blue        "#0000ff"})
+
+(def c->rgb
+  (->> {:C1 :dark-green
+        :C2 :light-green
+        :C3 :amber
+        :C4 :light-red
+        :C5 :blue}
+       (map-vals colors->rgb)))
+
+(def c->hex
+  (->> {:C1 :dark-green
+        :C2 :light-green
+        :C3 :amber
+        :C4 :light-red
+        :C5 :blue}
+       (map-vals colors->hex)))
+
+;;older palette
+
+(def old-c->rgb
+  {:C1 [0, 0, 255] ;"blue"
+   :C2 [144,238,144] ;"lightgreen"
+   :C3 [255,255,0 ] ;"yellow"
+   :C4 [255,255,224] ;"lightyellow"
+   :C5 [255,255,224 ] ;"lightyellow"
+   })
+

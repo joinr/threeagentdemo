@@ -231,14 +231,43 @@
               :position [0 2 -1.02]}]
      [:plane {:width width :height 5 :material {:color "white"}
               :position [0 2 -1.01]}]
+     [:plane {:width width :height 0.8 :material {:color (u/c->hex :C1)}
+            :position [0 3.2 -1]}]
+     [:plane {:width width :height 0.8 :material {:color (u/c->hex :C2)}
+            :position [0 2.4 -1]}]
+     [:plane {:width width :height 0.8 :material {:color (u/c->hex :C3)}
+            :position [0 1.6 -1]}]
+     [:plane {:width width :height 0.8 :material {:color (u/c->hex :C4)}
+              :position [0 0.8 -1]}]
+     [:plane {:width width :height 0.8 :material {:color (u/c->hex :C5)}
+              :position [0 0 -1]}]
+     [:text {:position [-1 4.25 0.1]
+             :scale    [ 1 1 0.1]
+             :text title
+             :material (get-mat "black")
+             :font     (@state :font)
+             :height   0.1
+             :size     0.5}]
+     contents]))
+
+;;old c1-c4 racetrack with SR color palette.
+#_
+(defn racetrack [title width & [contents]]
+  (let [n width]
+    [:object {:position [0 0 -8]
+              :scale    [.8 .8 .8]}
+     [:plane {:width (+ width 0.1) :height 5.1 :material {:color "black"}
+              :position [0 2 -1.02]}]
+     [:plane {:width width :height 5 :material {:color "white"}
+              :position [0 2 -1.01]}]
      [:plane {:width width :height 1 :material {:color "blue"}
-            :position [0 3 -1]}]
+              :position [0 3 -1]}]
      [:plane {:width width :height 1 :material {:color "lightgreen"}
-            :position [0 2 -1]}]
+              :position [0 2 -1]}]
      [:plane {:width width :height 1 :material {:color "yellow"}
-            :position [0 1 -1]}]
+              :position [0 1 -1]}]
      [:plane {:width width :height 1 :material {:color "lightyellow"}
-            :position [0 0 -1]}]
+              :position [0 0 -1]}]
      [:text {:position [-1 4.25 0.1]
              :scale    [ 1 1 0.1]
              :text title
@@ -444,12 +473,21 @@
                                   entities))]
     (assoc s :entities new-entities)))
 
+#_
 (defn naive-c-rating [ent]
   (let [r (ent :readiness)]
     (cond (>= r 0.75) :C1
           (>= r 0.5)  :C2
           (>= r 0.25) :C3
           :else :C4)))
+
+(defn naive-c-rating [ent]
+  (let [r (ent :readiness)]
+    (cond (>= r 0.8) :C1
+          (>= r 0.6)  :C2
+          (>= r 0.4) :C3
+          (>= r 0.2) :C4
+          :else :C5)))
 
 (defn insert-by [v f itm]
   (if-not (empty? v)
@@ -462,14 +500,20 @@
   {"abct.png" {:C1 "abct-c1.png"
                :C2 "abct-c2.png"
                :C3 "abct-c3.png"
+               :C4 "abct-c4.png"
+               :c5 "abct-c5.png"
                }
    "sbct.png" {:C1 "sbct-c1.png"
                :C2 "sbct-c2.png"
                :C3 "sbct-c3.png"
+               :C4 "sbct-c4.png"
+               :C5 "sbct-c5.png"
                }
    "ibct.png" {:C1 "ibct-c1.png"
                :C2 "ibct-c2.png"
                :C3 "ibct-c3.png"
+               :C4 "ibct-c4.png"
+               :C5 "ibct-c5.png"
                }})
 
 (defn deploy-unit [s id location dt]

@@ -9,8 +9,6 @@
   :dependencies [[org.clojure/clojure "1.10.3"]
                  [reagent "0.10.0" ]
                  [doughamil/threeagent "0.0.10"]
-                 #_[cljsjs/three "0.1.01-1"]
-                 #_[cljsjs/three-examples "0.0.91-0"] ;;old, maybe fine though.
                  ;;probably should consolidate these...
                  [cljsjs/vega "5.17.0-0"]
                  [cljsjs/vega-lite "4.17.0-0"]
