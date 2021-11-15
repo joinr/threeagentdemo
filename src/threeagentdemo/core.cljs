@@ -413,11 +413,25 @@
       (->> (threehelp/render f this {:render-params {:antialias true}})
            (swap! state assoc :scene)))}))
 
-(def regions {:northcom 5
-              :pacom    8
-              :eucom    22
-              :centcom  2})
+(def regions
+  {:northcom 1
+   :pacom    3
+   :eucom    3
+   :centcom  2})
 
+(def conflict-demand
+  {:northcom 4
+   :pacom    5
+   :eucom    20
+   :centcom  0})
+
+;;create a lame demand that is low for 6 months, then goes to conflict.
+;;as currently stated, we have a map of demand-by-region.
+;;regions are equivalent to demand.
+;;So if we increase demand at time 1, we just assoc into the :regions key
+;;with the deltas, add increment the corresponding slots.
+
+;;OBE
 (defn tick-regions [contents]
   (reduce-kv (fn [acc region xs]
                (->> (if (> (count xs) (regions region))
@@ -428,22 +442,24 @@
                     (assoc acc region))) contents contents))
 
 ;;for now, this is doing nothing since we have garbage problems.
-(def c-day (th/cursor state [:c-day]))
+(def c-day  (th/cursor state [:c-day]))
+(def period (th/cursor state [:period]))
 
 (def readiness-rate
   {"AC" 0.003
    "NG" 0.005})
 
 (defn find-deploys [s]
-  (let [ deps       (filter (fn [[region n]]
-                              (pos? n))
-                            (s :slots))]
+  (let [deps       (filter (fn [[region n]]
+                             (pos? n))
+                           (s :slots))]
     (when (seq deps)
       (let [open-slots  (->> deps (map second) (reduce +))
+            thresh      (s :deploy-threshold)
             deployables (->> s
                              :entities
                              vals
-                             (filter #(and (>= (% :readiness) 0.7)
+                             (filter #(and (>= (% :readiness) thresh)
                                            (not (pos? (% :wait-time 0))))) ;;not deployed...
                              (take open-slots)
                              (sort-by #(- (% :readiness))))]
@@ -501,7 +517,7 @@
                :C2 "abct-c2.png"
                :C3 "abct-c3.png"
                :C4 "abct-c4.png"
-               :c5 "abct-c5.png"
+               :C5 "abct-c5.png"
                }
    "sbct.png" {:C1 "sbct-c1.png"
                :C2 "sbct-c2.png"
@@ -572,6 +588,17 @@
                    (update-in acc [:waiting id] dec)))
                s waits)))
 
+(defn tick-conflict [s]
+  (if-let [tc (s :tconflict)]
+    (if (= tc (s :c-day))
+      (let [added-demand (s :conflict-demand)
+            new-demand   (merge-with + added-demand (@state :demand))
+            new-slots    (merge-with + added-demand (@state :slots))]
+        (assoc s :demand new-demand :slots new-slots :period "Conflict"
+                 :deploy-threshold 0))
+      s)
+    s))
+
 (defn tick-scene [s]
   (if (and (s :animating)
            (<= (s :c-day) (s :tstop)))
@@ -582,6 +609,7 @@
             (update :c-day + 1)
             tick-home
             tick-waits
+            tick-conflict ;;lame on purpose
             tick-deploys
             tick-missing)
         tickstate))
@@ -595,7 +623,20 @@
     (swap! state assoc :entities emap :locations contents :types types :waiting {} :contents {})))
 
 (defn init-demand! [demand]
-  (swap! state assoc :demand demand :slots demand))
+  (swap! state assoc :demand demand :slots demand
+         :conflict-demand conflict-demand
+         :tconflict 450
+         :period "Competition"
+         :deploy-threshold 0.7))
+
+(defn compute-outline [s]
+  (let [{:keys [tstart tstop demand conflict-demand tconflict]} s
+        compdemand (reduce + (vals demand))
+        confdemand (+ compdemand (reduce + (vals conflict-demand)))]
+    (concat (for [t (range tstart (dec tconflict))]
+              #js[#js{:c-day t :trend "Demand" :value compdemand}])
+            (for [t (range tconflict tstop)]
+              #js[#js{:c-day t :trend "Demand" :value confdemand}]))))
 
 (defn play! []
   (swap! state assoc :animating true))
@@ -627,6 +668,8 @@
            :stats {:deployed {:C1 0
                               :C2 0
                               :C3 0
+                              :C4 0
+                              :C5 0
                               :Missing 0}})
     ;;could be cleaner.  revisit this.
     (watch-until :fill-plot-exists
@@ -641,10 +684,12 @@
 
 (defn daily-stats [t]
   (let [stats (get-in @state [:stats :deployed])
-        {:keys [C1 C2 C3 Missing]} stats]
+        {:keys [C1 C2 C3 C4 C5 Missing]} stats]
     #js[#js{:c-day t :trend "C1" :value C1}
         #js{:c-day t :trend "C2" :value C2}
         #js{:c-day t :trend "C3" :value C3}
+        #js{:c-day t :trend "C4" :value C4}
+        #js{:c-day t :trend "C5" :value C5}
         #js{:c-day t :trend "Missing" :value Missing}]))
 
 (defn plot-watch! []
@@ -670,6 +715,9 @@
        [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
                               :justify-content "space-between"
                               :font-size "xxx-large"}}
+        [:p {:id "period" :style {:margin "0 auto" :text-align "center" }}
+         @period #_(str "Period:"  @period)
+         ]
         [:p {:id "c-day" :style {:margin "0 auto" :text-align "center" }}
          ;;no idea why this causes a slow memory leak!
          (str "Day:"  (int @c-day))

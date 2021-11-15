@@ -321,17 +321,32 @@
                                                :symbolSize 200
                                                :title nil}}
                             :size {:value 5}}}
-               #_{:mark "rule",
-                :encoding {:x    {:field "c-day" :aggregate "max"}
-                           :y    {:datum 0}
-                           :y2   {:field "value" :aggregate "max"
-                                  :type "quantitative"
-                                  #_#_:scale {:domain [0.0 1.0]} }
-                           :size {:value 5}
-                           :strokeCap {:value "square"}
-                           :opacity {:value 0.35}
-                           :color {:value {:expr "ruleColor"}}
-                           }}]}
+               #_{:mark "line",
+                :transform [{:filter "datum.trend = 'Demand'"}]
+                :encoding  {:x  {:field "c-day" :type "quantitative"
+                                 #_:axis #_{:title "C-Day"
+                                            :titleFontSize 22
+                                            :labelFontSize 16}
+                                 :scale {:domain [{:expr "xmin"} {:expr "xmax"}]
+                                         :nice false}},
+                            :y  {:field "value"
+                                 #_:axis #_ {:title "Units Late-to-Need"
+                                             :titleFontSize 22
+                                             :labelFontSize 16}
+                                 :type "quantitative"
+                                 #_#_:scale {:domain [0.0 1.0]}},
+                            :color  "white" #_{:field "trend",
+                                     :type "nominal"
+                                     :scale  {:domain ["ltn"]
+                                              :range  [{:expr "lineColor"} #_"#03befc"]}
+                                     :legend  {:direction "horizontal"
+                                               :orient "bottom"
+                                               :layout {:bottom {:anchor "middle"}}
+                                               :labelExpr "{'ltn': 'Late-to-Need'}[datum.label]"
+                                               :labelFontSize 16
+                                               :symbolSize 200
+                                               :title nil}}
+                            :size {:value 5}}}]}
       (merge dark-theme)
       #_clj->js))
 
