@@ -453,6 +453,7 @@
 ;;for now, this is doing nothing since we have garbage problems.
 (def c-day  (th/cursor state [:c-day]))
 (def period (th/cursor state [:period]))
+(def demand-profile (th/cursor state [:demand-profile]))
 
 (def readiness-rate
   {"AC" 0.003
@@ -685,7 +686,8 @@
                               :C3 0
                               :C4 0
                               :C5 0
-                              :Missing 0}})
+                              :Missing 0}}
+           :demand-profile (compute-outline @state))
     ;;could be cleaner.  revisit this.
     (watch-until :fill-plot-exists
                  threeagentdemo.vega/charts
@@ -708,6 +710,10 @@
         #js{:c-day t :trend "Missing" :value Missing}]))
 
 (defn plot-watch! []
+  #_(add-watch demand-profile :demand-profile
+             (fn [k r o n]
+               (v/push-samples! :fill-plot-view n
+                                :table-name "demandtrend")))
   (add-watch c-day :plotting
                (fn [k r oldt newt]
                  (cond (< newt oldt)

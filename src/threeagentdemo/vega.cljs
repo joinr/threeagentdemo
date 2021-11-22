@@ -292,9 +292,9 @@
                 {:name "xmax", :value 1}
                 {:name "lineColor" :value "#5effff"}
                 {:name "ruleColor" :value "rgba(255,255,255,1)"}]
-       :data
-       {:name "table"},
-       :layer [{:mark "area" #_"line",
+       :layer [{:data
+                {:name "table"}
+                :mark "area" #_"line",
                 :encoding  {:x  {:field "c-day" :type "quantitative"
                                  :axis {:title "Day"
                                         :titleFontSize 22
@@ -321,8 +321,10 @@
                                                :symbolSize 200
                                                :title nil}}
                             :size {:value 5}}}
-               #_{:mark "line",
-                :transform [{:filter "datum.trend = 'Demand'"}]
+               {:mark "line",
+                :data
+                 {:name "demandtrend"}
+                :transform [{:filter {:field "trend", :equal "Demand"}}]
                 :encoding  {:x  {:field "c-day" :type "quantitative"
                                  #_:axis #_{:title "C-Day"
                                             :titleFontSize 22
@@ -335,7 +337,7 @@
                                              :labelFontSize 16}
                                  :type "quantitative"
                                  #_#_:scale {:domain [0.0 1.0]}},
-                            :color  "white" #_{:field "trend",
+                            :color {:value "white"} #_{:field "trend",
                                      :type "nominal"
                                      :scale  {:domain ["ltn"]
                                               :range  [{:expr "lineColor"} #_"#03befc"]}
@@ -427,6 +429,14 @@
    (-> (new js/vega.changeset)
        (.insert rs))))
 
+(defn as-changes [xs]
+  (if (seq? xs)
+    (let [cs (->changes (first xs))]
+      (doseq [x (rest xs)]
+        (.insert cs x))
+      cs)
+    (->changes xs)))
+
 (defn ->rewind [fld tmax]
   (-> (new js/vega.changeset)
       (.remove (fn [t]
@@ -446,20 +456,20 @@
   (let [vw (-> charts deref vals first .-view)]
     (.run (.change vw "table" (->rewind "c-day" tmax)))))
 
-(defn push-samples! [plot-name xs]
+(defn push-samples! [plot-name xs & {:keys [table-name] :or {table-name "table"}}]
   (let [vw (or (some-> @charts (get plot-name) .-view) (throw (ex-info "unknown plot!" {:name plot-name})))
-        cs (->changes xs)]
-    (.run (.change vw "table" cs))))
+        cs (as-changes #_->changes xs)]
+    (.run (.change vw table-name cs))))
 
 (defn rewind-samples! [plot-name field bound]
   (let [vw (or (some-> @charts (get plot-name) .-view) (throw (ex-info "unknown plot!" {:name plot-name})))
         cs (->rewind field bound)]
     (.run (.change vw "table" cs))))
 
-(defn clear-data! [plot-name]
+(defn clear-data! [plot-name & {:keys [table-name] :or {table-name "table"}}]
   (let [vw (or (some-> @charts (get plot-name) .-view) (throw (ex-info "unknown plot!" {:name plot-name})))
         ]
-    (.data vw "table" nil)
+    (.data vw table-name nil)
     (.run vw)))
 
 (defn push-signals! [plot-name sig-val]
