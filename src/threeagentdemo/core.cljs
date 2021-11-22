@@ -167,7 +167,7 @@
   [:object {:position [-10 0 -10]
             :scale    [0.5 0.5 0.5]}
    [:object {:position [-3 6 0]}
-    [:text {:text "NORTHCOM"
+    [:text {:text "USNORTHCOM"
             :material (get-mat "black")
             :font font
             :height 0.1
@@ -182,22 +182,22 @@
   [:object {:position [-2 0 -10]
             :scale    [0.5 0.5 0.5]}
    [:object {:position [-3 6 0]}
-    [:text {:text "EUCOM"
+    [:text {:text "USEUCOM"
             :material (get-mat "black")
             :font font
             :height 0.1
             :size 0.5}]]
-   [:box {:width 10.5 :height 12 :material {:color "lightgrey"}
-          :position [0 1 -1]}]
-   [translate [0.5 0.5 0]
-    [container 10 10
+   [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
+          :position [0 4 -1]}]
+   [translate [0.5 4 0]
+    [container 10 3
      items]]])
 
 (defn centcom [font items]
   [:object {:position [4 0 -10]
             :scale    [0.5 0.5 0.5]}
    [:object {:position [-3 6 0]}
-    [:text {:text "CENTCOM"
+    [:text {:text "USCENTCOM"
             :material (get-mat "black")
             :font font
             :height 0.1
@@ -212,7 +212,7 @@
   [:object {:position [10 0 -10]
             :scale    [0.5 0.5 0.5]}
    [:object {:position [-3 6 0]}
-    [:text {:text "PACOM"
+    [:text {:text "USINDOPACOM"
             :material (get-mat "black")
             :font font
             :height 0.1
@@ -223,7 +223,9 @@
     [container 10 10 items]]])
 
 
-(defn racetrack [title width & [contents]]
+(defn racetrack
+  ([title width {:keys [title-position contents]
+                 :or   {title-position  [-1 4.25 0.1]}}]
   (let [n width]
     [:object {:position [0 0 -8]
               :scale    [.8 .8 .8]}
@@ -241,7 +243,7 @@
               :position [0 0.8 -1]}]
      [:plane {:width width :height 0.8 :material {:color (u/c->hex :C5)}
               :position [0 0 -1]}]
-     [:text {:position [-1 4.25 0.1]
+     [:text {:position title-position #_[-1 4.25 0.1]
              :scale    [ 1 1 0.1]
              :text title
              :material (get-mat "black")
@@ -249,6 +251,7 @@
              :height   0.1
              :size     0.5}]
      contents]))
+  ([title width] (racetrack title width {})))
 
 ;;old c1-c4 racetrack with SR color palette.
 #_
@@ -310,6 +313,11 @@
   (vec (concat @(th/cursor state [:contents location])
                (missing-items @(th/cursor state [:slots location])))))
 
+(defn counts->title [s src]
+  (let [cs    (get s src {"AC" 0 "NG" 0 "USAR" 0})
+        total (reduce + (vals cs))]
+    (str src " (" total ")" ":"  (cs "AC" 0) "/" (cs "NG" 0) "/" (cs "USAR" 0))))
+
 ;; Root component render function
 (defn scene []
   (let [ticks @(th/cursor state [:ticks])
@@ -318,18 +326,23 @@
         cos (.cos js/Math (/ ticks 100))
         abcts (entities-at-home "ABCT" @state)
         sbcts (entities-at-home "SBCT" @state)
-        ibcts (entities-at-home "IBCT" @state)]
+        ibcts (entities-at-home "IBCT" @state)
+        titles (@state :titles)]
     [:object
      #_[:ambient-light {:intensity 0.6}]
      [:object {:position [0 0 5]}
       [:point-light {:intensity 0.5}]]
      [:object {:position [0 -6 5]}
       [:point-light {:intensity 0.6}]]
-     [:group ;;container layer
-      [northcom font (contents :northcom) #_@(th/cursor state [:contents :northcom])]
-      [eucom    font (contents :eucom) #_@(th/cursor state [:contents :eucom])]
-      [centcom  font (contents :centcom) #_@(th/cursor state [:contents :centcom])]
-      [pacom    font (contents :pacom) #_@(th/cursor state [:contents :pacom])]]
+     [:group   {:position [0 2 2]} ;;container layer
+      [:object {:position [0 0 -15]
+                :scale [40 40 1]}
+       [u/sprite {:source "1024px-BlankMap-World-Flattened.svg.png"}]]
+      [:group {:position [0 -2 0]}
+       [northcom font (contents :northcom) #_@(th/cursor state [:contents :northcom])]
+       [eucom    font (contents :eucom) #_@(th/cursor state [:contents :eucom])]
+       [centcom  font (contents :centcom) #_@(th/cursor state [:contents :centcom])]
+       [pacom    font (contents :pacom) #_@(th/cursor state [:contents :pacom])]]]
      [:group   {:position [0 -6.5 0]}
       [:plane  {:position [0 1.05  -9]
                 :width 32 :height 5 :material {:color "white"}}]
@@ -359,18 +372,18 @@
                :height   0.1
                :size     0.4}]]
       [:object {:position [-9 0 0]}
-       [racetrack "ABCT" 8]]
+       [racetrack (titles "ABCT") 8]]
       ;;have to place these the in top level a
       [:object {:position [-11.75 0 -8.8]
                 :scale [0.4 0.4 1]}
        [icons-at-home abcts]]
       [:object {:position [1.5 0 0]}
-       [racetrack "IBCT" 18]]
+       [racetrack (titles "IBCT") 18]]
       [:object {:position [-5 0 -8.8]
                 :scale    [0.4 0.4 1]}
        [icons-at-home ibcts]]
-      [:object {:position [11 0 0]}
-          [racetrack "SBCT" 5]]
+      [:object {:position [11.15 0 0]}
+       [racetrack (titles "SBCT") 6 {:title-position  [-4 4.25 0.1]}]]
       [:object {:position [9.5 0 -8.8]
                 :scale    [0.4 0.4  1]}
        [icons-at-home sbcts]]]
@@ -379,10 +392,6 @@
        [:object {:rotation [1 sin 1]}
        [:object {:position [(+ -5.0 sin) -2.0 -5.0]}
         [row-of-boxes 10 "green"]]])
-
-       [:object {:position [0 0 -15]
-                 :scale [40 40 1]}
-         [u/sprite {:source "1024px-BlankMap-World-Flattened.svg.png"}]]
      #_
        [:object {:position [-10 3 -10]}
         [:sphere {:radius   1
@@ -461,8 +470,8 @@
                              vals
                              (filter #(and (>= (% :readiness) thresh)
                                            (not (pos? (% :wait-time 0))))) ;;not deployed...
-                             (take open-slots)
-                             (sort-by #(- (% :readiness))))]
+                             (sort-by #(- (% :readiness)))
+                             (take open-slots))]
         (when (seq deployables)
           (->> (reduce (fn [[remaining fills] [region n]]
                     (let [ents (take n remaining)
@@ -619,8 +628,14 @@
   (let [emap    (into {}
                     (map (fn [e] [(e :id) e])) ents)
         contents (u/map-vals (fn [xs] (set (map :id xs)))  (group-by :location ents))
-        types    (u/map-vals  (fn [xs] (set (map :id xs))) (group-by :SRC ents))]
-    (swap! state assoc :entities emap :locations contents :types types :waiting {} :contents {})))
+        types    (u/map-vals  (fn [xs] (set (map :id xs))) (group-by :SRC ents))
+        counts   (into {} (for [[src xs] (group-by :SRC ents)]
+                            [src (frequencies (map :compo xs))]
+                            ))
+        titles   (into {} (map (fn [k] [k (counts->title counts k)])) (keys types))]
+        (swap! state assoc :entities emap :locations contents :types types :waiting {} :contents {}
+               :counts counts
+               :titles titles)))
 
 (defn init-demand! [demand]
   (swap! state assoc :demand demand :slots demand
