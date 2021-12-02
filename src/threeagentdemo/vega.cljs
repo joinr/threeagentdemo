@@ -326,17 +326,10 @@
                  {:name "demandtrend"}
                 :transform [{:filter {:field "trend", :equal "Demand"}}]
                 :encoding  {:x  {:field "c-day" :type "quantitative"
-                                 #_:axis #_{:title "C-Day"
-                                            :titleFontSize 22
-                                            :labelFontSize 16}
                                  :scale {:domain [{:expr "xmin"} {:expr "xmax"}]
                                          :nice false}},
                             :y  {:field "value"
-                                 #_:axis #_ {:title "Units Late-to-Need"
-                                             :titleFontSize 22
-                                             :labelFontSize 16}
-                                 :type "quantitative"
-                                 #_#_:scale {:domain [0.0 1.0]}},
+                                 :type "quantitative"},
                             :color {:value "white"} #_{:field "trend",
                                      :type "nominal"
                                      :scale  {:domain ["ltn"]
@@ -348,7 +341,7 @@
                                                :labelFontSize 16
                                                :symbolSize 200
                                                :title nil}}
-                            :size {:value 5}}}]}
+                            :size {:value 2}}}]}
       (merge dark-theme)
       #_clj->js))
 

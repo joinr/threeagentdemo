@@ -546,6 +546,12 @@
                :C5 "ibct-c5.png"
                }})
 
+(defn c-rating->fill-stat [c]
+  (case c
+    :C1 "C1"
+    :C2 "C2"
+    "<=C3"))
+
 (defn deploy-unit [s id location dt]
   (let [ent (-> s :entities (get id))
         c-rating (naive-c-rating ent)
@@ -563,6 +569,7 @@
         (update-in [:slots     location] dec)
         (update-in [:entities id] assoc  :wait-time dt :location location)
         (update-in [:stats :deployed c-rating] inc)
+        (update-in [:fill-stats location (ent :SRC) (c-rating->fill-stat c-rating)] inc)
         (assoc-in [:waiting id] dt))))
 
 (defn missed-demand [s]
@@ -592,6 +599,7 @@
           (update-in [:slots     location] inc)
           (update-in [:entities id] assoc :wait-time 0 :readiness 0)
           (update-in [:stats :deployed c-rating] dec)
+          (update-in [:fill-stats location (ent :SRC) (c-rating->fill-stat c-rating)] dec)
           (update-in [:waiting] dissoc id))))
 
 (defn tick-waits [s]
@@ -710,8 +718,8 @@
            :fill-stats {:northcom empty-fill-stats
                         :eucom    empty-fill-stats
                         :centcom  empty-fill-stats
-                        :pacom    empty-fill-stats}
-           :demand-profile (compute-outline @state))
+                        :pacom    empty-fill-stats})
+    (reset! demand-profile (compute-outline @state))
     ;;could be cleaner.  revisit this.
     (watch-until :fill-plot-exists
                  threeagentdemo.vega/charts
@@ -734,8 +742,9 @@
         #js{:c-day t :trend "Missing" :value Missing}]))
 
 (defn plot-watch! []
-  #_(add-watch demand-profile :demand-profile
+  (add-watch demand-profile :demand-profile
              (fn [k r o n]
+               (println [:updating-demand-profile!])
                (v/push-samples! :fill-plot-view n
                                 :table-name "demandtrend")))
   (add-watch c-day :plotting
