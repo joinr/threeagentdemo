@@ -16,7 +16,7 @@
     res))
 
 ;;imports since these are private and we need access (prefer to have stuff public)
-(def find-context        #'threeagent.impl.scene/find-context )
+(def find-context        #'threeagent.impl.scene/find-context ) ;;broken.
 ;;(def reset-context!    #'threeagent.impl.scene/reset-context!)
 ;;(def create-context    #'threeagent.impl.scene/create-context)
 (def get-canvas           #'threeagent.impl.scene/get-canvas)
@@ -24,7 +24,7 @@
 (def init-scene           #'threeagent.impl.scene/init-scene )
 (def animate              #'threeagent.impl.scene/animate)
 (def remove-all-children! #'threeagent.impl.scene/remove-all-children!)
-(def contexts            @#'threeagent.impl.scene/contexts)
+#_(def contexts            @#'threeagent.impl.scene/contexts)
 
 
 ;;https://threejs.org/docs/#api/en/renderers/WebGLRenderer
@@ -113,7 +113,7 @@
                       #(animate context))]
       (set! (.-animateFn context) animator #_#(animate context))
       (init-scene context virtual-scene scene-root)
-      (.push contexts context)
+      (.push @#'threeagent.impl.scene/contexts #_contexts context)
       context)))
   ([root-fn dom-root on-before-render-cb on-after-render-cb shadow-map]
    (create-context root-fn dom-root on-before-render-cb on-after-render-cb shadow-map {})))

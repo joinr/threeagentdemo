@@ -12,7 +12,8 @@
    [threeagentdemo.threehelp :as threehelp]
    [threeagentdemo.testdata :as td]
    [threeagentdemo.vega :as v]
-   [cljs.core.async :as a :refer [chan put! >! <! close!]])
+   [cljs.core.async :as a :refer [chan put! >! <! close!]]
+   [threeagentdemo.dash :as dash])
   (:require-macros [cljs.core.async :refer [go]]))
 
 (def ^:dynamic *bbox-color* "black")
@@ -179,19 +180,20 @@
      items]]])
 
 (defn eucom [font items]
-  [:object {:position [-2 0 -10]
-            :scale    [0.5 0.5 0.5]}
-   [:object {:position [-3 6 0]}
-    [:text {:text "USEUCOM"
-            :material (get-mat "black")
-            :font font
-            :height 0.1
-            :size 0.5}]]
-   [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
-          :position [0 4 -1]}]
-   [translate [0.5 4 0]
-    [container 10 3
-     items]]])
+  [id :eucom
+   [:object {:position [-2 0 -10]
+             :scale    [0.5 0.5 0.5]}
+    [:object {:position [-3 6 0]}
+     [:text {:text "USEUCOM"
+             :material (get-mat "black")
+             :font font
+             :height 0.1
+             :size 0.5}]]
+    [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
+           :position [0 4 -1]}]
+    [translate [0.5 4 0]
+     [container 10 3
+      items]]]])
 
 (defn centcom [font items]
   [:object {:position [4 0 -10]
@@ -407,9 +409,11 @@
     :reagent-render (fn [] [:canvas])
     :component-did-mount
     (fn [this]
-      (->> (threehelp/render f (rdom/dom-node this) {:render-params {:antialias true :resize true}
-                                                     :on-before-render on-before-render})
-           #_(swap! state assoc :scene)))
+      (let [three-node (rdom/dom-node this)
+            _          (swap! state assoc :three-canvas three-node)]
+        (->> (threehelp/render f three-node {:render-params {:antialias true :resize true}
+                                             :on-before-render on-before-render})
+             #_(swap! state assoc :scene))))
 
     #_#_:component-did-update
     (fn [this]
@@ -654,6 +658,22 @@
             (for [t (range tconflict tstop)]
               #js[#js{:c-day t :trend "Demand" :value confdemand}]))))
 
+
+(def empty-fill-stats
+  ;;map of {src {c1 c2 <=c3 empty}}
+  {"IBCT" {"C1" 0 "C2" 0 "<=C3" 0 "Empty" 0}
+   "SBCT" {"C1" 0 "C2" 0 "<=C3" 0 "Empty" 0}
+   "ABCT" {"C1" 0 "C2" 0 "<=C3" 0 "Empty" 0}})
+
+(defn fill-stats->entries [m]
+  (let [srcs (keys (first (vals m)))]
+    (apply concat ["SRC" "C1" "C2" "<=C3" "Empty"]
+           (for [[src cs] m]
+             (cons src (vals cs))))))
+
+(def empty-fill-entries
+  (fill-stats->entries empty-fill-stats))
+
 (defn play! []
   (swap! state assoc :animating true))
 
@@ -687,6 +707,10 @@
                               :C4 0
                               :C5 0
                               :Missing 0}}
+           :fill-stats {:northcom empty-fill-stats
+                        :eucom    empty-fill-stats
+                        :centcom  empty-fill-stats
+                        :pacom    empty-fill-stats}
            :demand-profile (compute-outline @state))
     ;;could be cleaner.  revisit this.
     (watch-until :fill-plot-exists
@@ -722,8 +746,78 @@
                        (do (v/push-samples!   :fill-plot-view (daily-stats newt)))
                        :else nil))))
 
+;;helpers
+(defn current-context []
+  (some-> @state :three-canvas threehelp/find-context))
+
+(defn current-camera []
+  (some-> (current-context) .-camera))
+
+(defn world-position [nd & {:keys [update? v]
+                            :or {update? false}}]
+  (let [nd (if (keyword? nd)
+             (some-> @state :nodes (get nd))
+             nd)
+        v  (or v (js/three.Vector3.))]
+    (when nd
+      (when update? (.updateWorldMatrix nd true false))
+      (.getWorldPosition nd v)
+      v)))
+
+(defn ->three-vector [x y z]
+  (let [tv (js/three.Vector3.)]
+    (aset tv "x" x)
+    (aset tv "y" y)
+    (aset tv "z" z)
+    tv))
+
+(defn project-css
+  ([v]
+   (let [ctx    (current-context)
+         _      (.project v (.-camera ctx))
+         canvas (.-canvas ctx)]
+     [(* (+ (* (.-x v) 0.5) 0.5) (.-clientWidth canvas))
+      (* (+ (* (.-y v) 0.5) 0.5) (.-clientHeight canvas))]))
+  ([x y z] (project-css (->three-vector x y z))))
+
+(defn css-coordinates [nd]
+  (when-let [v (world-position nd)]
+    (let [ctx    (current-context)
+          _  (.project v (.-camera ctx))
+          canvas (.-canvas ctx)]
+      [(* (+ (* (.-x v) 0.5) 0.5) (.-clientWidth canvas))
+       (* (+ (* (.-y v) 0.5) 0.5) (.-clientHeight canvas))])))
+
+(defn css-bounds [nd]
+  (let [bnds (world-bounds nd)]
+    {:min (project-css (bnds :min))
+     :max (project-css (bnds :max))}))
+
+(defn fill-table [entries]
+  [dash/flex-table 5 entries])
+
+(def overlay-style
+ {:position "absolute" :z-index "10" :bottom "5%" :width "22%" :height "30%"
+   :left "0%"})
+
+;;fairly janky but closer to what we want to see...
+(defn fill-overlay [northcom eucom centcom pacom]
+  [:div
+   [:div  {:style (assoc overlay-style :left "0%")}
+    [fill-table (fill-stats->entries northcom)]]
+   [:div {:style (assoc overlay-style :left "31%")}
+    [fill-table (fill-stats->entries eucom)]]
+   [:div {:style (assoc overlay-style :left "55%")}
+    [fill-table  (fill-stats->entries centcom)]]
+   [:div {:style (assoc overlay-style :left "78%")}
+    [fill-table (fill-stats->entries pacom)]]])
+
 (defn app [ratom]
-  (let [render-scene! (fn [dt] (swap! ratom tick-scene))]
+  (let [render-scene! (fn [dt] (swap! ratom tick-scene))
+        nc            (th/cursor ratom [:fill-stats :northcom])
+        ec            (th/cursor ratom [:fill-stats :eucom])
+        cc            (th/cursor ratom [:fill-stats :centcom])
+        pc            (th/cursor ratom [:fill-stats :pacom])]
     (fn []
       [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%"}}
        [:div {:id "chart-root" :style {:display "flex"}}
@@ -731,8 +825,8 @@
          [v/vega-chart "fill-plot" v/fill-spec]]]
        [:div  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
                        :justify-content "space-between"}}
-        [three-canvas "root-scene" scene render-scene!
-         #_(fn [dt] (swap! ratom tick-scene))]]
+        [three-canvas "root-scene" scene render-scene!]
+        [fill-overlay @nc @ec @cc @pc]]
        [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
                               :justify-content "space-between"
                               :font-size "xxx-large"}}
