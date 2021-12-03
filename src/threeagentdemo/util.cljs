@@ -11,6 +11,9 @@
   (reduce-kv (fn [acc k v]
                (assoc acc k (f v))) {} m))
 
+(defn precision [n k]
+  (js/parseFloat (.toPrecision n k)))
+
 ;;custom component creation...
 
 ;; const map = new THREE.TextureLoader().load( 'sprite.png' );

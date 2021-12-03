@@ -698,6 +698,23 @@
                        (remove-watch atm id)))))
     res))
 
+(defn totals [s]
+  (->> s :entities vals
+       (reduce (fn [acc e]
+                 (case (e :location)
+                   :home (case (naive-c-rating e)
+                           :C1 (update acc :available inc)
+                           (update acc :unavailable inc))
+                   (update acc :mission inc)))
+               {:mission 0
+                :available 0
+                :unavailable 0})))
+
+(defn percentages [counts]
+  (let [total (reduce + (vals counts))]
+    (reduce-kv (fn [acc k v] (assoc acc k  (u/precision (double (* 100 (/ v total))) 2)))
+               counts counts)))
+
 (defn init-state! []
   (let [randomized (map (fn [{:keys [readiness] :as e}]
                           (assoc e :readiness (rand) #_(/  (rand) 2.0))) td/test-entities)
@@ -714,7 +731,8 @@
                               :C3 0
                               :C4 0
                               :C5 0
-                              :Missing 0}}
+                              :Missing 0}
+                   :totals  (totals @state)}
            :fill-stats {:northcom empty-fill-stats
                         :eucom    empty-fill-stats
                         :centcom  empty-fill-stats
@@ -826,12 +844,26 @@
         nc            (th/cursor ratom [:fill-stats :northcom])
         ec            (th/cursor ratom [:fill-stats :eucom])
         cc            (th/cursor ratom [:fill-stats :centcom])
-        pc            (th/cursor ratom [:fill-stats :pacom])]
+        pc            (th/cursor ratom [:fill-stats :pacom])
+        total-stats   (th/cursor ratom [:stats :totals])
+        fancy-percents (fn [m]
+                         (let [res (percentages m)]
+                           ["Mission" "Available" "Unavailable"
+                            (str (res :mission) "%")
+                            (str (res :available) "%")
+                            (str (res :unavailable) "%")]))
+        _              (add-watch c-day :percentages
+                          (fn [_ _ oldt newt]
+                            (when (> newt oldt)
+                              (reset! total-stats (totals @ratom)))))]
     (fn []
       [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%"}}
        [:div {:id "chart-root" :style {:display "flex"}}
-        [:div {:style {:flex "0.95" :width "95%"}}
+        [:div {:style {:flex "0.95" #_"0.95" :max-width "95%"}}
          [v/vega-chart "fill-plot" v/fill-spec]]]
+       [dash/flex-table 3 (fancy-percents @total-stats)
+        :style {:display "flex" :flex-wrap "wrap" ;:background "darkgray"
+                        :font-size "1em"}]
        [:div  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
                        :justify-content "space-between"}}
         [three-canvas "root-scene" scene render-scene!]
