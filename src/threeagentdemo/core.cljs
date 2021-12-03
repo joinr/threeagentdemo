@@ -737,13 +737,14 @@
                         :eucom    empty-fill-stats
                         :centcom  empty-fill-stats
                         :pacom    empty-fill-stats})
-    (reset! demand-profile (compute-outline @state))
     ;;could be cleaner.  revisit this.
+#_    (reset! demand-profile (compute-outline @state))
     (watch-until :fill-plot-exists
                  threeagentdemo.vega/charts
                  (fn [m]
                    (when (m :fill-plot-view)
-                     (v/push-extents! :fill-plot-view tstart tstop))))))
+                     (v/push-extents! :fill-plot-view tstart tstop)
+                     (reset! demand-profile (compute-outline @state)))))))
 
 (defn reset-state! []
   (swap! state assoc :animating false)
