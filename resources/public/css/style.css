@@ -119,3 +119,12 @@ canvas {
 }
 
 
+.table-entry {
+    {animation: backgrounder 1s ease-in-out;
+    }
+}
+
+@keyframes backgrounder {
+    from {background-color: grey;}
+    to {background-color: whitesmoke;}
+}

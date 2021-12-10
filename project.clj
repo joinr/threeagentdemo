@@ -7,7 +7,10 @@
   :min-lein-version "2.7.1"
 
   :dependencies [[org.clojure/clojure "1.10.3"]
-                 [reagent "0.10.0" ]
+                 [reagent "0.10.0" #_"1.1.0" ]
+                 ;;have to declare explicitly now.
+                 #_[cljsjs/react "17.0.2-0"]
+                 #_[cljsjs/react-dom "17.0.2-0"]
                  [doughamil/threeagent "0.0.10"]
                  ;;probably should consolidate these...
                  [cljsjs/vega "5.17.0-0"]

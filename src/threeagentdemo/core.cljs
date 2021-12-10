@@ -174,10 +174,46 @@
             :height 0.1
             :size 0.5}]]
    [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
-          :position [0 4 -1]}]
-   [translate [0.5 2.5 0]
+          :position [0 4 -1]
+          :scale [1 1 0.03]}]
+  #_ [translate [0.5 2.5 0]
     [container 10 6
-     items]]])
+     items]]
+  [translate [0.5 1.8 0]
+   [container 10 1
+    (filterv (fn [[_ {:keys [source]}]]
+               (clojure.string/includes? source "abct")) items)]
+   [translate [0.5 2.5 0]
+    [container 10 1
+     (filterv (fn [[_ {:keys [source]}]] 
+                (clojure.string/includes? source "ibct")) items)]
+    [translate [0.5 2 0]
+     [container 10 1
+      (filterv (fn [[_ {:keys [source]}]]
+                 (or (clojure.string/includes? source "sbct")
+                     (clojure.string/includes? source "empty"))) items)]]]]])
+#_
+(defn eucom [font items]
+  [id :eucom
+   [:object {:position [-2 0 -10]
+             :scale    [0.5 0.5 0.5]}
+    [:object {:position [-3 6 0]}
+     [:text {:text "USEUCOM"
+             :material (get-mat "black")
+             :font font
+             :height 0.1
+             :size 0.5}]]
+    [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
+           :position [0 4 -1]
+           :scale [1 1 0.03]}]
+    [translate [0.5 4 0]
+     [container 10 3
+      items]]]])
+
+(defn src-groups [items]
+  (let [obj->src (fn [obj]
+                   (get-in @state [:entities (-> obj meta :id) :SRC]))]
+    (into {} (map (fn [x] [x (obj->src x)]) items))))
 
 (defn eucom [font items]
   [id :eucom
@@ -190,10 +226,21 @@
              :height 0.1
              :size 0.5}]]
     [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
-           :position [0 4 -1]}]
-    [translate [0.5 4 0]
-     [container 10 3
-      items]]]])
+           :position [0 4 -1]
+           :scale [1 1 0.03]}]
+    [translate [0.5 1.8 0]
+     [container 10 1
+      (filterv (fn [[_ {:keys [source]}]]
+                 (clojure.string/includes? source "abct")) items)]
+    [translate [0.5 2.5 0]
+     [container 10 1
+      (filterv (fn [[_ {:keys [source]}]] 
+                 (clojure.string/includes? source "ibct")) items)]
+    [translate [0.5 2 0]
+     [container 10 1
+      (filterv (fn [[_ {:keys [source]}]]
+                    (or (clojure.string/includes? source "sbct")
+                        (clojure.string/includes? source "empty"))) items)]]]]]])
 
 (defn centcom [font items]
   [:object {:position [4 0 -10]
@@ -205,10 +252,24 @@
             :height 0.1
             :size 0.5}]]
    [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
-          :position [0 4 -1]}]
-   [translate [0.5 0.5 0]
+          :position [0 4 -1]
+          :scale [1 1 0.03]}]
+   #_[translate [0.5 0.5 0]
     [container 10 10
-     items]]])
+     items]]
+   [translate [0.5 1.8 0]
+    [container 10 1
+     (filterv (fn [[_ {:keys [source]}]]
+                (clojure.string/includes? source "abct")) items)]
+    [translate [0.5 2.5 0]
+     [container 10 1
+      (filterv (fn [[_ {:keys [source]}]] 
+                 (clojure.string/includes? source "ibct")) items)]
+     [translate [0.5 2 0]
+      [container 10 1
+       (filterv (fn [[_ {:keys [source]}]]
+                  (or (clojure.string/includes? source "sbct")
+                      (clojure.string/includes? source "empty"))) items)]]]]])
 
 (defn pacom [font items]
   [:object {:position [10 0 -10]
@@ -220,9 +281,24 @@
             :height 0.1
             :size 0.5}]]
    [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
-          :position [0 4 -1]}]
+          :position [0 4 -1]
+          :scale [1 1 0.03]}]
+   #_
    [translate [0.5 0.5 0]
-    [container 10 10 items]]])
+    [container 10 10 items]]
+   [translate [0.5 1.8 0]
+    [container 10 1
+     (filterv (fn [[_ {:keys [source]}]]
+                (clojure.string/includes? source "abct")) items)]
+    [translate [0.5 2.5 0]
+     [container 10 1
+      (filterv (fn [[_ {:keys [source]}]] 
+                 (clojure.string/includes? source "ibct")) items)]
+     [translate [0.5 2 0]
+      [container 10 1
+       (filterv (fn [[_ {:keys [source]}]]
+                  (or (clojure.string/includes? source "sbct")
+                      (clojure.string/includes? source "empty"))) items)]]]]])
 
 
 (defn racetrack
@@ -597,7 +673,7 @@
                                                                    (= (-> v meta :id) id))
                                                             (or v [])))))
           (update-in [:slots     location] inc)
-          (update-in [:entities id] assoc :wait-time 0 :readiness 0)
+          (update-in [:entities id] assoc :wait-time 0 :readiness 0 :location :home)
           (update-in [:stats :deployed c-rating] dec)
           (update-in [:fill-stats location (ent :SRC) (c-rating->fill-stat c-rating)] dec)
           (update-in [:waiting] dissoc id))))
@@ -675,7 +751,7 @@
 
 (defn fill-stats->entries [m]
   (let [srcs (keys (first (vals m)))]
-    (apply concat ["SRC" "C1" "C2" "<=C3" "Empty"]
+    (apply concat ["SRC" "C1" "C2" "<=C3" "Miss"]
            (for [[src cs] m]
              (cons src (vals cs))))))
 
@@ -703,7 +779,7 @@
        (reduce (fn [acc e]
                  (case (e :location)
                    :home (case (naive-c-rating e)
-                           :C1 (update acc :available inc)
+                           (:C1 :C2) (update acc :available inc)
                            (update acc :unavailable inc))
                    (update acc :mission inc)))
                {:mission 0
