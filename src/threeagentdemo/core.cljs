@@ -167,142 +167,74 @@
           _   (swap! matcache assoc color res)]
       res)))
 
-(defn northcom [font items]
-  [:object {:position [-10 0 -10]
-            :scale    [0.5 0.5 0.5]}
-   [:object {:position [-3 6 0]}
-    [:text {:text "USNORTHCOM"
+(defn cocom [position-scale  width height title font items]
+  [:object position-scale
+   [:object {:position [-2.25 7 -0.99]
+             :scale    [1 1 0.1]}
+    [:text {:text title
             :material (get-mat "black")
             :font font
             :height 0.1
-            :size 0.5}]]
-   [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
-          :position [0 4 -1]
+            :size 0.6}]]
+   [:box {:width width :height height :material {:color "lightgrey"}
+          :position [0 3.8 -1]
           :scale [1 1 0.03]}]
-  #_ [translate [0.5 2.5 0]
-    [container 10 6
-     items]]
-  [translate [0.5 1.8 0]
-   [container 10 1
-    (filterv (fn [[_ {:keys [source]}]]
-               (clojure.string/includes? source "abct")) items)]
-   [translate [0.5 2.5 0]
+   [:object {:position [0.5 1.8 0]
+             :scale [0.9 0.9 1.0]}
     [container 10 1
-     (filterv (fn [[_ {:keys [source]}]] 
-                (clojure.string/includes? source "ibct")) items)]
-    [translate [0.5 2 0]
-     [container 10 1
-      (filterv (fn [[_ {:keys [source]}]]
-                 (or (clojure.string/includes? source "sbct")
-                     (clojure.string/includes? source "empty"))) items)]]]]])
-#_
-(defn eucom [font items]
-  [id :eucom
-   [:object {:position [-2 0 -10]
-             :scale    [0.5 0.5 0.5]}
-    [:object {:position [-3 6 0]}
-     [:text {:text "USEUCOM"
-             :material (get-mat "black")
-             :font font
-             :height 0.1
-             :size 0.5}]]
-    [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
-           :position [0 4 -1]
-           :scale [1 1 0.03]}]
-    [translate [0.5 4 0]
-     [container 10 3
-      items]]]])
-
-(defn src-groups [items]
-  (let [obj->src (fn [obj]
-                   (get-in @state [:entities (-> obj meta :id) :SRC]))]
-    (into {} (map (fn [x] [x (obj->src x)]) items))))
-
-(defn eucom [font items]
-  [id :eucom
-   [:object {:position [-2 0 -10]
-             :scale    [0.5 0.5 0.5]}
-    [:object {:position [-3 6 0]}
-     [:text {:text "USEUCOM"
-             :material (get-mat "black")
-             :font font
-             :height 0.1
-             :size 0.5}]]
-    [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
-           :position [0 4 -1]
-           :scale [1 1 0.03]}]
-    [translate [0.5 1.8 0]
-     [container 10 1
-      (filterv (fn [[_ {:keys [source]}]]
-                 (clojure.string/includes? source "abct")) items)]
-    [translate [0.5 2.5 0]
+     (filterv (fn [[_ {:keys [source]}]]
+                (clojure.string/includes? source "abct")) items)]
+    [translate [0.5 2.7 0]
      [container 10 1
       (filterv (fn [[_ {:keys [source]}]] 
                  (clojure.string/includes? source "ibct")) items)]
-    [translate [0.5 2 0]
-     [container 10 1
-      (filterv (fn [[_ {:keys [source]}]]
-                    (or (clojure.string/includes? source "sbct")
-                        (clojure.string/includes? source "empty"))) items)]]]]]])
+     [translate [0.5 2 0]
+      [container 10 1
+       (filterv (fn [[_ {:keys [source]}]]
+                  (or (clojure.string/includes? source "sbct")
+                      (clojure.string/includes? source "empty"))) items)]]]]])
+
+(defn northcom [font items]
+  [id :northcom
+   [cocom {:position [-10 0 -10]
+           :scale    [0.5 0.5 0.5]}
+    10.5  6 "USNORTHCOM" font items]])
+
+(defn eucom [font items]
+  [id :eucom
+   [cocom {:position [-2 0 -10]
+           :scale    [0.5 0.5 0.5]}
+    10.5  6 "USEUCOM" font items]])
 
 (defn centcom [font items]
-  [:object {:position [4 0 -10]
+  [id :centcom
+   [cocom  {:position [4 0 -10]
             :scale    [0.5 0.5 0.5]}
-   [:object {:position [-3 6 0]}
-    [:text {:text "USCENTCOM"
-            :material (get-mat "black")
-            :font font
-            :height 0.1
-            :size 0.5}]]
-   [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
-          :position [0 4 -1]
-          :scale [1 1 0.03]}]
-   #_[translate [0.5 0.5 0]
-    [container 10 10
-     items]]
-   [translate [0.5 1.8 0]
-    [container 10 1
-     (filterv (fn [[_ {:keys [source]}]]
-                (clojure.string/includes? source "abct")) items)]
-    [translate [0.5 2.5 0]
-     [container 10 1
-      (filterv (fn [[_ {:keys [source]}]] 
-                 (clojure.string/includes? source "ibct")) items)]
-     [translate [0.5 2 0]
-      [container 10 1
-       (filterv (fn [[_ {:keys [source]}]]
-                  (or (clojure.string/includes? source "sbct")
-                      (clojure.string/includes? source "empty"))) items)]]]]])
+    10.5  6 "USCENTCOM" font items]])
 
 (defn pacom [font items]
-  [:object {:position [10 0 -10]
-            :scale    [0.5 0.5 0.5]}
-   [:object {:position [-3 6 0]}
-    [:text {:text "USINDOPACOM"
-            :material (get-mat "black")
-            :font font
-            :height 0.1
-            :size 0.5}]]
-   [:box {:width 10.5 :height 6 :material {:color "lightgrey"}
-          :position [0 4 -1]
-          :scale [1 1 0.03]}]
-   #_
-   [translate [0.5 0.5 0]
-    [container 10 10 items]]
-   [translate [0.5 1.8 0]
-    [container 10 1
-     (filterv (fn [[_ {:keys [source]}]]
-                (clojure.string/includes? source "abct")) items)]
-    [translate [0.5 2.5 0]
-     [container 10 1
-      (filterv (fn [[_ {:keys [source]}]] 
-                 (clojure.string/includes? source "ibct")) items)]
-     [translate [0.5 2 0]
-      [container 10 1
-       (filterv (fn [[_ {:keys [source]}]]
-                  (or (clojure.string/includes? source "sbct")
-                      (clojure.string/includes? source "empty"))) items)]]]]])
+  [id :pacom
+   [cocom   {:position [10 0 -10]
+             :scale    [0.5 0.5 0.5]}
+    10.5  6 "USINDOPACOM" font items]])
 
+(defn southcom [font items]
+  [id :pacom
+   [cocom   {:position [10 0 -10]
+             :scale    [0.5 0.5 0.5]}
+    10.5  6 "USSOUTHCOM" font items]])
+
+(defn africom [font items]
+  [id :pacom
+   [cocom   {:position [10 0 -10]
+             :scale    [0.5 0.5 0.5]}
+    10.5  6 "USAFRICOM" font items]])
+
+(defn irf [font items]
+  [id :pacom
+   [cocom   {:position [10 0 -10]
+             :scale    [0.5 0.5 0.5]}
+    10.5  6 "IRF" font items]])
 
 (defn racetrack
   ([title width {:keys [title-position contents]
@@ -389,7 +321,7 @@
 (defn counts->title [s src]
   (let [cs    (get s src {"AC" 0 "NG" 0 "USAR" 0})
         total (reduce + (vals cs))]
-    (str src " (" total ")" ":"  (cs "AC" 0) "/" (cs "NG" 0) "/" (cs "USAR" 0))))
+    (str src " (" total ")" ": "  (cs "AC" 0) "/" (cs "NG" 0) "/" (cs "USAR" 0))))
 
 (defn compo-icons [position-scale offset ac-icons rc-icons]
   [:object position-scale
@@ -434,40 +366,34 @@
      [:group   {:position [0 -6.5 0]}
       [:plane  {:position [0 1.05  -9]
                 :width 32 :height 5 :material {:color "white"}}]
-      [:group {:position [-12.85 #_-12.75 -0.3 -8.5] :scale [0.9 0.9 0.1]}
-       #_[:text {:position [0 0 0]
-               :text "C4"
-               :material (get-mat "black")
-               :font     (@state :font)
-               :height   0.1
-               :size     0.4}]
+      [:group {:position [-12.85 -0.3 -8.5] :scale [0.9 0.9 0.1]}
        [:text {:position [0 0.85 0]
-               :text "MOD" #_"C3"
+               :text "MOD"
                :material (get-mat "black")
                :font     (@state :font)
                :height   0.1
                :size     0.4}]
        [:text {:position [0 1.7 0]
-              :text "TRN" #_"C2"
+              :text "TRN"
                :material (get-mat "black")
                :font     (@state :font)
                :height   0.1
                :size     0.4}]
        [:text {:position [0 2.505 0]
-               :text "MSN" #_"C1"
+               :text "MSN"
                :material (get-mat "black")
                :font     (@state :font)
                :height   0.1
                :size     0.4}]]
       [:object {:position [-9 0 0]}
-       [racetrack (titles "ABCT") 8]]
+       [racetrack (titles "ABCT") 8.1 {:title-position [-1.5 4.25 0.1]}] ]
       ;;have to place these the in top level a
       [compo-icons {:position [-11.75 0 -8.8]
                     :scale [0.4 0.4 1]}
        (inc ((counts "ABCT") "AC")) (ABCT "AC") (ABCT "RC")]
 
       [:object {:position [1.5 0 0]}
-       [racetrack (titles "IBCT") 18]]
+       [racetrack (titles "IBCT") 18 {:title-position [-2 4.25 0.1]}]]
       [compo-icons {:position [-5 0 -8.8]
                     :scale    [0.4 0.4 1]}
        (+ ((counts "IBCT") "AC") 5) (IBCT "AC") (IBCT "RC")]
@@ -766,7 +692,7 @@
 
 (defn fill-stats->entries [m]
   (let [srcs (keys (first (vals m)))]
-    (apply concat ["SRC" "C1" "C2" "<=C3" "Miss"]
+    (apply concat ["SRC" "C1" "C2" "<=C3" "Missing"]
            (for [[src cs] m]
              (cons src (vals cs))))))
 
@@ -915,7 +841,7 @@
      :max (project-css (bnds :max))}))
 
 (defn fill-table [entries]
-  [dash/flex-table 5 entries])
+  [dash/flex-table 5 entries :style (assoc dash/default-style :font-size "0.46em")])
 
 (def overlay-style
  {:position "absolute" :z-index "10" :bottom "5%" :width "22%" :height "30%"
