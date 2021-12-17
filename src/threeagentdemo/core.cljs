@@ -331,33 +331,6 @@
      contents]))
   ([title width] (racetrack title width {})))
 
-;;old c1-c4 racetrack with SR color palette.
-#_
-(defn racetrack [title width & [contents]]
-  (let [n width]
-    [:object {:position [0 0 -8]
-              :scale    [.8 .8 .8]}
-     [:plane {:width (+ width 0.1) :height 5.1 :material {:color "black"}
-              :position [0 2 -1.02]}]
-     [:plane {:width width :height 5 :material {:color "white"}
-              :position [0 2 -1.01]}]
-     [:plane {:width width :height 1 :material {:color "blue"}
-              :position [0 3 -1]}]
-     [:plane {:width width :height 1 :material {:color "lightgreen"}
-              :position [0 2 -1]}]
-     [:plane {:width width :height 1 :material {:color "yellow"}
-              :position [0 1 -1]}]
-     [:plane {:width width :height 1 :material {:color "lightyellow"}
-              :position [0 0 -1]}]
-     [:text {:position [-1 4.25 0.1]
-             :scale    [ 1 1 0.1]
-             :text title
-             :material (get-mat "black")
-             :font     (@state :font)
-             :height   0.1
-             :size     0.5}]
-     contents]))
-
 (defn entity-sprite [id]
   (when-let [ent (-> @state :entities id)]
     [:sprite {:source (ent :icon)}]))
@@ -370,6 +343,21 @@
          ents (s :entities)]
      (mapv ents ids)))
   ([type] (entities-at-home type @state)))
+
+(defn grouped-entities-at-home
+  ([s]
+   (let [ids     (-> s :locations (get :home))
+         ents    (s :entities)
+         home    (mapv ents ids)]
+     (->> (for [[src xs] (group-by :SRC home)
+                [compo ys] (group-by (fn [e]
+                                       (case (e :compo)
+                                         "AC" "AC"
+                                         "RC")) xs)]
+            [src compo (sort-by :readiness ys)])
+          (reduce (fn [acc [src compo xs]]
+                    (assoc-in acc [src compo] xs)) {}))))
+  ([] (grouped-entities-at-home @state)))
 
 (defn icons-at-home
   ([ents]
@@ -402,9 +390,10 @@
         font  @(th/cursor state [:font])
         sin (.sin js/Math (/ ticks 100))
         cos (.cos js/Math (/ ticks 100))
-        abcts (entities-at-home "ABCT" @state)
-        sbcts (entities-at-home "SBCT" @state)
-        ibcts (entities-at-home "IBCT" @state)
+        {:strs [IBCT ABCT SBCT]} (grouped-entities-at-home @state)
+        abcts (concat (ABCT "AC") (ABCT "RC"))
+        sbcts (concat (SBCT "AC") (SBCT "RC"))
+        ibcts (concat (IBCT "AC") (IBCT "RC"))
         titles (@state :titles)]
     [:object
      #_[:ambient-light {:intensity 0.6}]
@@ -536,8 +525,8 @@
 (def demand-profile (th/cursor state [:demand-profile]))
 
 (def readiness-rate
-  {"AC" 0.003
-   "NG" 0.005})
+  {"AC"  (u/precision (/ 1 365) 4)
+   "NG"  (u/precision (/ 1 (* 5 365)) 4)})
 
 (defn find-deploys [s]
   (let [deps       (filter (fn [[region n]]
@@ -788,12 +777,14 @@
 
 (defn percentages [counts]
   (let [total (reduce + (vals counts))]
-    (reduce-kv (fn [acc k v] (assoc acc k  (u/precision (double (* 100 (/ v total))) 2)))
+    (reduce-kv (fn [acc k v]
+                 (assoc acc k
+                        (Math/round (u/precision (double (* 100 (/ v total))) 3))))
                counts counts)))
 
 (defn init-state! []
   (let [randomized (map (fn [{:keys [readiness] :as e}]
-                          (assoc e :readiness (rand) #_(/  (rand) 2.0))) td/test-entities)
+                          (assoc e :readiness (rand))) td/test-entities)
         tstart 0
         tstop  1000]
     (init-entities! randomized)
