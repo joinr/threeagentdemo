@@ -18,6 +18,9 @@
 
 (def ^:dynamic *bbox-color* "black")
 
+;;empirically determined....
+(def +sprite-width+ 0.5333333333333333)
+
 ;;state now lives in threeagentdemo.state/state
 ;;but we refer to it locally, so api hasn't changed.
 
@@ -335,6 +338,10 @@
   (when-let [ent (-> @state :entities id)]
     [:sprite {:source (ent :icon)}]))
 
+(defn compo-key [e]
+  (case (e :compo)
+    "AC" "AC" "RC"))
+
 (defn entities-at-home
   ([type s]
    (let [ids     (-> s :types (get type))
@@ -384,6 +391,17 @@
         total (reduce + (vals cs))]
     (str src " (" total ")" ":"  (cs "AC" 0) "/" (cs "NG" 0) "/" (cs "USAR" 0))))
 
+(defn compo-icons [position-scale offset ac-icons rc-icons]
+  [:object position-scale
+   [icons-at-home ac-icons]
+   [:object {:position [(* +sprite-width+ (+ offset 8)) 0 0]}
+    [:box {:position [(- +sprite-width+) 0 0 ]
+           :width 0.1
+           :height 14.25
+           :depth 0.01
+           :material (get-mat "black")}]
+    [icons-at-home rc-icons]]])
+
 ;; Root component render function
 (defn scene []
   (let [ticks @(th/cursor state [:ticks])
@@ -394,6 +412,9 @@
         abcts (concat (ABCT "AC") (ABCT "RC"))
         sbcts (concat (SBCT "AC") (SBCT "RC"))
         ibcts (concat (IBCT "AC") (IBCT "RC"))
+        counts (@state :ac-rc-count)
+        sbct-offset (* +sprite-width+ (inc ((counts "SBCT") "AC")))
+        ibct-offset (* +sprite-width+ (inc ((counts "IBCT") "AC")))
         titles (@state :titles)]
     [:object
      #_[:ambient-light {:intensity 0.6}]
@@ -441,19 +462,20 @@
       [:object {:position [-9 0 0]}
        [racetrack (titles "ABCT") 8]]
       ;;have to place these the in top level a
-      [:object {:position [-11.75 0 -8.8]
-                :scale [0.4 0.4 1]}
-       [icons-at-home abcts]]
+      [compo-icons {:position [-11.75 0 -8.8]
+                    :scale [0.4 0.4 1]}
+       (inc ((counts "ABCT") "AC")) (ABCT "AC") (ABCT "RC")]
+
       [:object {:position [1.5 0 0]}
        [racetrack (titles "IBCT") 18]]
-      [:object {:position [-5 0 -8.8]
-                :scale    [0.4 0.4 1]}
-       [icons-at-home ibcts]]
+      [compo-icons {:position [-5 0 -8.8]
+                    :scale    [0.4 0.4 1]}
+       (+ ((counts "IBCT") "AC") 5) (IBCT "AC") (IBCT "RC")]
       [:object {:position [11.15 0 0]}
        [racetrack (titles "SBCT") 6 {:title-position  [-4 4.25 0.1]}]]
-      [:object {:position [9.5 0 -8.8]
-                :scale    [0.4 0.4  1]}
-       [icons-at-home sbcts]]]
+      [compo-icons {:position [9.5 0 -8.8]
+                    :scale    [0.4 0.4  1]}
+       ((counts "SBCT") "AC") (SBCT "AC") (SBCT "RC")]]
 
      (when (@state :showbox)
        [:object {:rotation [1 sin 1]}
@@ -710,9 +732,13 @@
         counts   (into {} (for [[src xs] (group-by :SRC ents)]
                             [src (frequencies (map :compo xs))]
                             ))
+        ac-rc-count (into {} (for [[src xs] (group-by :SRC ents)]
+                               [src (frequencies (map compo-key xs))]
+                               ))
         titles   (into {} (map (fn [k] [k (counts->title counts k)])) (keys types))]
         (swap! state assoc :entities emap :locations contents :types types :waiting {} :contents {}
                :counts counts
+               :ac-rc-count ac-rc-count
                :titles titles)))
 
 (defn init-demand! [demand]
