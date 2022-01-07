@@ -310,9 +310,9 @@
                                  #_#_:scale {:domain [0.0 1.0]}},
                             :color  {:field "trend",
                                      :type "nominal"
-                                     :scale  {:domain ["Missing" "C5" "C4" "C3" "C2"  "C1"]
-                                              :range  ["black"   (u/c->hex :C5) (u/c->hex :C4)
-                                                       (u/c->hex :C3) (u/c->hex :C2) (u/c->hex :C1)]}
+                                     :scale  {:domain (reverse ["Missed Demand" "C5" "C4" "C3" "C2"  "C1"])
+                                              :range  (reverse ["black"   (u/c->hex :C5) (u/c->hex :C4)
+                                                       (u/c->hex :C3) (u/c->hex :C2) (u/c->hex :C1)])}
                                      :legend  {:direction "horizontal"
                                                :orient "bottom"
                                                :layout {:bottom {:anchor "middle"}}

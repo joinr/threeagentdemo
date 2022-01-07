@@ -321,7 +321,7 @@
 (defn counts->title [s src]
   (let [cs    (get s src {"AC" 0 "NG" 0 "USAR" 0})
         total (reduce + (vals cs))]
-    (str src " (" total ")" ": "  (cs "AC" 0) "/" (cs "NG" 0) "/" (cs "USAR" 0))))
+    (str src " (" total ")" ": "  (cs "AC" 0) "/" (+ (cs "NG" 0) (cs "USAR" 0)) #_#_"/" (cs "USAR" 0))))
 
 (defn compo-icons [position-scale offset ac-icons rc-icons]
   [:object position-scale
@@ -568,9 +568,9 @@
 (defn deploy-unit [s id location dt]
   (let [ent (-> s :entities (get id))
         c-rating (naive-c-rating ent)
-        icon (ent :icon)
-        c-icon (or (get-in c-icons [icon c-rating])
-                   (throw (ex-info "unknown sprite!" {:in [icon c-rating]})))]
+        icon     (ent :icon)
+        c-icon   (or (get-in c-icons [icon c-rating])
+                     (throw (ex-info "unknown sprite!" {:in [icon c-rating]})))]
     (-> s
         (update-in [:locations :home] disj id)
         (update-in [:locations location] (fn [v] (conj (or v #{}) id)))
@@ -692,7 +692,7 @@
 
 (defn fill-stats->entries [m]
   (let [srcs (keys (first (vals m)))]
-    (apply concat ["SRC" "C1" "C2" "<=C3" "Missing"]
+    (apply concat ["SRC" "C1" "C2" "<=C3" "Missed"]
            (for [[src cs] m]
              (cons src (vals cs))))))
 
@@ -841,7 +841,7 @@
      :max (project-css (bnds :max))}))
 
 (defn fill-table [entries]
-  [dash/flex-table 5 entries :style (assoc dash/default-style :font-size "0.46em")])
+  [dash/flex-table 5 entries :style (assoc dash/default-style :font-size "0.4em")])
 
 (def overlay-style
  {:position "absolute" :z-index "10" :bottom "5%" :width "22%" :height "30%"

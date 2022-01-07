@@ -27,7 +27,7 @@
                    :overflow  "hidden"
                    :list-style "none"
                    :font-weight      (if non-zero "900" "normal")
-                   :text-align "center"
+                   :text-align "middle"
                    :background-color  (cond txt "verydarkgrey"
                                             non-zero "grey")
                    :visibility        (if (or txt non-zero) "visible" "hidden")
