@@ -1,7 +1,8 @@
 (ns threeagentdemo.util
   (:require [threeagent.core :as th]
             ["three" :as three]
-            [threeagentdemo.svg :as svg])
+            [threeagentdemo.svg :as svg]
+            [cljs-http.client :as http])
   (:require-macros [threeagent.macros :refer [defcomponent]]))
 
 (defn device-pixel-ratio []
@@ -27,6 +28,19 @@
 
 (defn precision [n k]
   (js/parseFloat (.toPrecision n k)))
+
+;;simple repl development helper.
+(defn make-remote-call
+  ([endpoint]
+   (let [res (atom nil)]
+     (go (let [response (<! (http/get endpoint) )]
+           ;;enjoy your data
+           (reset! res (:body response))))
+     res))
+  ([endpoint f]
+   (go (let [response (<! (http/get endpoint) )]
+         ;;enjoy your data
+         (f (:body response))))))
 
 ;;custom component creation...
 

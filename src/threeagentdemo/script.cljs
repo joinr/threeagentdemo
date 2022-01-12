@@ -15,6 +15,17 @@
           (if (coll? s) (set s) #{s}))
        first))
 
+;;need to enforce assumptions:
+
+;;locations are by region, so
+#_
+(def regions
+  {:northcom 1
+   :pacom    3
+   :eucom    3
+   :centcom  2})
+
+
 ;; ;;analagous visual commands.
 ;; ;;assuming we have these in the data already,
 ;; ;;we can update them.
@@ -44,7 +55,7 @@
         (update-in [:waiting] dissoc id))))
 
 (defn deploy-unit [s id location dt]
-  (let [ent (-> s :entities (get id))
+  (let [ent      (-> s :entities (get id))
         c-rating (-> ent c-rating upper-c) ;;no longer needed, just get c-rating from state.
         icon     (ent :icon)
         c-icon   (or (get-in u/c-icons [icon c-rating])
@@ -62,10 +73,9 @@
         (update-in [:entities id] assoc  :wait-time dt :location location)
         (update-in [:stats :deployed c-rating] inc)
         (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)] inc)
-        (assoc-in [:waiting id] dt))))
+        (assoc-in  [:waiting id] dt))))
 
 ;;moves consist of [:deployed|:home id from to]
-
 (defn tick-moves [s moves]
   (reduce (fn [acc [mv id from to]]
             (case mv
@@ -85,17 +95,32 @@
 
 (defn tick-period [s frm] (u/assoc-change s frm :period))
 
+;;since we have velocities, we can lerp entities by adding to their readiness
+;;component.  if we have a frame, we just merge the entity data in from it.
+;;otherwise we interpolate from the current state.
+
+;;we're just adding up time-variable stats, namely readiness.
+(defn lerp-frame [tickstate]
+  (reduce-kv (fn [acc id ent]
+               (assoc acc id (update ent :readiness + (ent :velocity))))
+             tickstate (tickstate :entities)))
+
 (defn tick-frame [tickstate]
   (if-let [next-frame (first (tickstate :frames))]
     (let [{:keys [t period entities moves missed]} next-frame]
-      ;;move entities
-      (-> tickstate
-          (assoc :c-day t) ;;update time to frame.
-          (tick-moves    moves) ;;process entity movement.
-          (tick-entities entities)
-          ;;missed demand.
-          (assoc-in [:stats :deployed :Missing] missed)
-          (tick-period period)))
+      (if (= t (inc (tickstate :c-day)))  ;;merge information from the current frame.
+        ;;move entities
+        (-> tickstate
+            (assoc :c-day t) ;;update time to frame.
+            (tick-moves    moves) ;;process entity movement.
+            (tick-entities entities)
+            ;;missed demand.
+            (assoc-in [:stats :deployed :Missing] missed)
+            (tick-period period))
+        ;;lerp from the last point, incrementing time.
+        (-> tickstate
+            (update :c-day inc)
+            lerp-frame)))
     tickstate))
 
 #_

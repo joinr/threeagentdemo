@@ -18,7 +18,8 @@
                  [cljsjs/vega-embed "6.14.2-0"]
                  [metosin/vega-tools "0.2.0"]
                  [semantic-csv "0.2.1-alpha1"]
-                 [org.clojure/core.async "1.3.618"]]
+                 [org.clojure/core.async "1.3.618"]
+                 [cljs-http "0.1.46"]]
 
   :source-paths ["src"]
 
