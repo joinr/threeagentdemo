@@ -516,14 +516,6 @@
                                   entities))]
     (assoc s :entities new-entities)))
 
-#_
-(defn naive-c-rating [ent]
-  (let [r (ent :readiness)]
-    (cond (>= r 0.75) :C1
-          (>= r 0.5)  :C2
-          (>= r 0.25) :C3
-          :else :C4)))
-
 (defn naive-c-rating [ent]
   (let [r (ent :readiness)]
     (cond (>= r 0.8) :C1
@@ -532,57 +524,24 @@
           (>= r 0.2) :C4
           :else :C5)))
 
-(defn insert-by [v f itm]
-  (if-not (empty? v)
-    (->> (conj v itm)
-         (sort-by f)
-         vec)
-    [itm]))
-
-(def c-icons
-  {"abct.png" {:C1 "abct-c1.png"
-               :C2 "abct-c2.png"
-               :C3 "abct-c3.png"
-               :C4 "abct-c4.png"
-               :C5 "abct-c5.png"
-               }
-   "sbct.png" {:C1 "sbct-c1.png"
-               :C2 "sbct-c2.png"
-               :C3 "sbct-c3.png"
-               :C4 "sbct-c4.png"
-               :C5 "sbct-c5.png"
-               }
-   "ibct.png" {:C1 "ibct-c1.png"
-               :C2 "ibct-c2.png"
-               :C3 "ibct-c3.png"
-               :C4 "ibct-c4.png"
-               :C5 "ibct-c5.png"
-               }})
-
-(defn c-rating->fill-stat [c]
-  (case c
-    :C1 "C1"
-    :C2 "C2"
-    "<=C3"))
-
 (defn deploy-unit [s id location dt]
   (let [ent (-> s :entities (get id))
         c-rating (naive-c-rating ent)
         icon     (ent :icon)
-        c-icon   (or (get-in c-icons [icon c-rating])
+        c-icon   (or (get-in u/c-icons [icon c-rating])
                      (throw (ex-info "unknown sprite!" {:in [icon c-rating]})))]
     (-> s
         (update-in [:locations :home] disj id)
         (update-in [:locations location] (fn [v] (conj (or v #{}) id)))
         (update-in [:contents  location] (fn [v]
-                                           (insert-by (or v [])
-                                                      (fn [itm] (-> itm second :source))
-                                                      ^{:id id}
-                                                      [:sprite {:source c-icon #_(ent :icon)}])))
+                                           (u/insert-by (or v [])
+                                                        (fn [itm] (-> itm second :source))
+                                                        ^{:id id}
+                                                        [:sprite {:source c-icon #_(ent :icon)}])))
         (update-in [:slots     location] dec)
         (update-in [:entities id] assoc  :wait-time dt :location location)
         (update-in [:stats :deployed c-rating] inc)
-        (update-in [:fill-stats location (ent :SRC) (c-rating->fill-stat c-rating)] inc)
+        (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)] inc)
         (assoc-in [:waiting id] dt))))
 
 (defn missed-demand [s]
@@ -612,7 +571,7 @@
           (update-in [:slots     location] inc)
           (update-in [:entities id] assoc :wait-time 0 :readiness 0 :location :home)
           (update-in [:stats :deployed c-rating] dec)
-          (update-in [:fill-stats location (ent :SRC) (c-rating->fill-stat c-rating)] dec)
+          (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)] dec)
           (update-in [:waiting] dissoc id))))
 
 (defn tick-waits [s]

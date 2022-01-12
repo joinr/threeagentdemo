@@ -11,6 +11,20 @@
   (reduce-kv (fn [acc k v]
                (assoc acc k (f v))) {} m))
 
+(defn assoc-change [l r k]
+  (let [lv (l k)
+        rv (r k)]
+    (if (= lv rv)
+      l
+      (assoc l k rv))))
+
+(defn insert-by [v f itm]
+  (if-not (empty? v)
+    (->> (conj v itm)
+         (sort-by f)
+         vec)
+    [itm]))
+
 (defn precision [n k]
   (js/parseFloat (.toPrecision n k)))
 
@@ -112,3 +126,28 @@
    :C5 [255,255,224 ] ;"lightyellow"
    })
 
+(defn c-rating->fill-stat [c]
+  (case c
+    :C1 "C1"
+    :C2 "C2"
+    "<=C3"))
+
+(def c-icons
+  {"abct.png" {:C1 "abct-c1.png"
+               :C2 "abct-c2.png"
+               :C3 "abct-c3.png"
+               :C4 "abct-c4.png"
+               :C5 "abct-c5.png"
+               }
+   "sbct.png" {:C1 "sbct-c1.png"
+               :C2 "sbct-c2.png"
+               :C3 "sbct-c3.png"
+               :C4 "sbct-c4.png"
+               :C5 "sbct-c5.png"
+               }
+   "ibct.png" {:C1 "ibct-c1.png"
+               :C2 "ibct-c2.png"
+               :C3 "ibct-c3.png"
+               :C4 "ibct-c4.png"
+               :C5 "ibct-c5.png"
+               }})
