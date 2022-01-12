@@ -1,11 +1,19 @@
 (ns threeagentdemo.script
   (:require [clojure.set]))
 
+(defn upper-c
+  {:c1 :C1
+   :c2 :C2
+   :c3 :C3
+   :c4 :C4
+   :c5 :C5})
+
 ;;cribbed from m4.
 (defn c-rating [s]
-  (first (clojure.set/intersection
+  (->> (clojure.set/intersection
           #{:c1 :c2 :c3 :c4 :c5}
-          (if (coll? s) (set s) #{s}))))
+          (if (coll? s) (set s) #{s}))
+       first))
 
 ;; ;;analagous visual commands.
 ;; ;;assuming we have these in the data already,
@@ -21,7 +29,7 @@
   (let [ent      (-> s :entities (get id))
         location (ent :location)
         ;;different...we already know.
-        c-rating (naive-c-rating ent)]
+        c-rating (-> ent c-rating upper-c)]
     (-> s
         (update-in [:locations :home] conj id)
         (update-in [:locations location] (fn [v] (disj (or v #{}) id)))
@@ -37,9 +45,9 @@
 
 (defn deploy-unit [s id location dt]
   (let [ent (-> s :entities (get id))
-        c-rating (naive-c-rating ent) ;;no longer needed, just get c-rating from state.
+        c-rating (-> ent c-rating upper-c) ;;no longer needed, just get c-rating from state.
         icon     (ent :icon)
-        c-icon   (or (get-in c-icons [icon c-rating])
+        c-icon   (or (get-in u/c-icons [icon c-rating])
                      (throw (ex-info "unknown sprite!" {:in [icon c-rating]})))
         from     (ent :location)]
     (-> s
@@ -67,6 +75,14 @@
               acc))
           s moves))
 
+;;just merge time varying information into entities.
+(defn tick-entities [s ents]
+  (let [olds (s :entities)]
+    (->>  (reduce-kv (fn [acc id {:keys [curstate location readiness]}]
+                      (assoc acc id (assoc (acc id) :state curstate :location location :readiness readiness)))
+                     olds ents)
+          (assoc s :entities))))
+
 (defn tick-period [s frm] (u/assoc-change s frm :period))
 
 (defn tick-frame [tickstate]
@@ -75,7 +91,8 @@
       ;;move entities
       (-> tickstate
           (assoc :c-day t) ;;update time to frame.
-          (tick-moves moves) ;;process entity movement.
+          (tick-moves    moves) ;;process entity movement.
+          (tick-entities entities)
           ;;missed demand.
           (assoc-in [:stats :deployed :Missing] missed)
           (tick-period period)))
