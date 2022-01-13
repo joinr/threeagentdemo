@@ -98,10 +98,10 @@
 
 ;;moves consist of [:deployed|:home id from to]
 (defn tick-moves [s moves]
-  (reduce (fn [acc [mv id from to]]
+  (reduce (fn [acc [mv id _ _ from to ]]
             (case mv
-              :deployed  (deploy-unit s id to 1) ;;deploy time is not necessary for replay, remove in future.
-              :home      (send-home   s id)
+              :deployed   (deploy-unit s id to 1) ;;deploy time is not necessary for replay, remove in future.
+              :returned   (send-home   s id)
               ;;ignore :dwell moves.
               acc))
           s moves))
@@ -109,12 +109,17 @@
 ;;just merge time varying information into entities.
 (defn tick-entities [s ents]
   (let [olds (s :entities)]
-    (->>  (reduce-kv (fn [acc id {:keys [curstate location readiness]}]
-                      (assoc acc id (assoc (acc id) :state curstate :location location :readiness readiness)))
+    (->>  (reduce-kv (fn [acc id {:keys [curstate location readiness velocity]}]
+                       (assoc acc id (assoc (acc id) :state curstate :location location :readiness readiness
+                                            :velocity velocity)))
                      olds ents)
           (assoc s :entities))))
 
-(defn tick-period [s frm] (u/assoc-change s frm :period))
+(defn tick-period [s frm]
+  (if (= (s :period) (frm :period))
+    s
+    (assoc s :period (frm :period))
+  #_(u/assoc-change s frm :period)))
 
 ;;since we have velocities, we can lerp entities by adding to their readiness
 ;;component.  if we have a frame, we just merge the entity data in from it.
@@ -122,30 +127,38 @@
 
 ;;we're just adding up time-variable stats, namely readiness.
 (defn lerp-frame [tickstate]
-  (reduce-kv (fn [acc id ent]
-               (assoc acc id (update ent :readiness + (ent :velocity))))
-             tickstate (tickstate :entities)))
+  (update tickstate :entities
+          (fn [ents]
+            (reduce-kv (fn [acc id ent]
+                         (if (not= (ent :location) :home)
+                           (assoc acc id ent)
+                           (assoc acc id (update ent :readiness + (ent :velocity)))))
+                       ents ents))))
 
 (defn tick-frame [tickstate]
-  (if-let [next-frame  (first (tickstate :frames))]
-    (if (and (tickstate :animating) next-frame)
-      (let [{:keys [t period entities moves missed]} next-frame]
-        (if (= t (inc (tickstate :c-day)))  ;;merge information from the current frame.
-          ;;move entities
-          (-> tickstate
-              (assoc :c-day  t) ;;update time to frame.
-              (tick-moves    moves) ;;process entity movement.
-              (tick-entities entities)
-              ;;missed demand.
-              (assoc-in [:stats :deployed :Missing] missed)
-              (assoc :frames (rest (tickstate :frames)))
-              #_(tick-period period))
-          ;;lerp from the last point, incrementing time.
-          (-> tickstate
-              (update :c-day inc)
-              lerp-frame)))
-      tickstate)
-    (assoc tickstate :animating false)))
+  (let [tickstate (update tickstate :ticks inc)
+        ticks (tickstate :ticks)]
+    (if (zero? (mod ticks 2))
+      (if-let [next-frame  (first (tickstate :frames))]
+        (if (and (tickstate :animating) next-frame)
+          (let [{:keys [t entities moves missed]} next-frame]
+            (if (= t (inc (tickstate :c-day)))  ;;merge information from the current frame.
+              ;;move entities
+              (-> tickstate
+                  (assoc :c-day  t) ;;update time to frame.
+                  (tick-moves    moves) ;;process entity movement.
+                  (tick-entities entities)
+                  ;;missed demand.
+                  (assoc-in [:stats :deployed :Missing] missed)
+                  (assoc :frames (rest (tickstate :frames)))
+                  (tick-period next-frame))
+              ;;lerp from the last point, incrementing time.
+              (-> tickstate
+                  (update :c-day inc)
+                  lerp-frame)))
+          tickstate)
+        (assoc tickstate :animating false))
+      tickstate)))
 
 (defn discrete-signal [xs]
   (let [final (atom nil)]
