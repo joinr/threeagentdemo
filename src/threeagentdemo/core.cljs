@@ -452,21 +452,37 @@
    :eucom    20
    :centcom  0})
 
+;;another option is to have several slices and use tick-conflict to ramp up
+;;based on a time step.
+
+(def conflict-demands
+  {450 {:northcom 4
+        :pacom    5
+        :eucom    7
+        :centcom  0}
+   470 {:northcom 0
+        :pacom    0
+        :eucom    4
+        :centcom  0}
+   500 {:northcom 0
+        :pacom    0
+        :eucom    3
+        :centcom  0}
+   520 {:northcom 0
+        :pacom    0
+        :eucom    2
+        :centcom  0}
+   550 {:northcom 0
+        :pacom    0
+        :eucom    2
+        :centcom  0}})
+
 ;;create a lame demand that is low for 6 months, then goes to conflict.
 ;;as currently stated, we have a map of demand-by-region.
 ;;regions are equivalent to demand.
 ;;So if we increase demand at time 1, we just assoc into the :regions key
 ;;with the deltas, add increment the corresponding slots.
 
-;;OBE
-(defn tick-regions [contents]
-  (reduce-kv (fn [acc region xs]
-               (->> (if (> (count xs) (regions region))
-                      []
-                      (->> (conj  xs [:sprite {:source (rand-nth ["abct.png" "sbct.png" "ibct.png"])}])
-                           (sort-by (comp :source second))
-                           vec))
-                    (assoc acc region))) contents contents))
 
 ;;for now, this is doing nothing since we have garbage problems.
 (def c-day  (th/cursor state [:c-day]))
@@ -583,6 +599,7 @@
                    (update-in acc [:waiting id] dec)))
                s waits)))
 
+#_
 (defn tick-conflict [s]
   (if-let [tc (s :tconflict)]
     (if (= tc (s :c-day))
@@ -592,6 +609,17 @@
         (assoc s :demand new-demand :slots new-slots :period "Conflict"
                  :deploy-threshold 0))
       s)
+    s))
+
+(defn tick-conflict [s]
+  (if-let [tc (s :tconflict)]
+    (let [demands (s :conflict-demands)]
+      (if-let [added-demand (some-> s :conflict-demands (get  (s :c-day)))]
+        (let [new-demand   (merge-with + added-demand (@state :demand))
+              new-slots    (merge-with + added-demand (@state :slots))]
+          (assoc s :demand new-demand :slots new-slots :period "Conflict"
+                 :deploy-threshold 0))
+        s))
     s))
 
 (defn tick-scene [s]
@@ -664,11 +692,20 @@
 
 (defn init-demand [s demand]
   (assoc s :demand demand :slots demand
-         :conflict-demand conflict-demand
+;         :conflict-demand conflict-demand
+         :conflict-demands conflict-demands
          :tconflict 450
          :period "Competition"
          :deploy-threshold 0.7))
 
+(defn conflict-profile [tstop m]
+  (let [total  (atom 0)
+        final  (atom nil)]
+    (concat (vec (for [[l r] (partition 2 1 (sort (keys m)))]
+                   (do (reset! final r)
+                       [[l r] (reset! total (reduce + @total (vals (m l))))])))
+            [[[@final (inc tstop)] (+ @total (reduce + (vals (m @final))))]])))
+#_
 (defn compute-outline [s]
   (let [{:keys [tstart tstop demand conflict-demand tconflict]} s
         compdemand (reduce + (vals demand))
@@ -677,6 +714,16 @@
               #js[#js{:c-day t :trend "Demand" :value compdemand}])
             (for [t (range tconflict tstop)]
               #js[#js{:c-day t :trend "Demand" :value confdemand}]))))
+
+(defn compute-outline [s]
+  (let [{:keys [tstart tstop demand conflict-demands tconflict]} s
+        compdemand (reduce + (vals demand))
+        cdemands (for [[[l r] v] (conflict-profile tstop conflict-demands)
+                       t         (range l r)]
+                   #js[#js{:c-day t :trend "Demand" :value (+ v compdemand)}])]
+    (concat (for [t (range tstart (dec tconflict))]
+              #js[#js{:c-day t :trend "Demand" :value compdemand}])
+            cdemands)))
 
 (def empty-fill-stats
   ;;map of {src {c1 c2 <=c3 empty}}
