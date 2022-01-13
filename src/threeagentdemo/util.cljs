@@ -2,8 +2,10 @@
   (:require [threeagent.core :as th]
             ["three" :as three]
             [threeagentdemo.svg :as svg]
-            [cljs-http.client :as http])
+            [cljs-http.client :as http]
+            [cljs.core.async :refer [<! go]])
   (:require-macros [threeagent.macros :refer [defcomponent]]))
+
 
 (defn device-pixel-ratio []
   (.-devicePixelRatio js/window))

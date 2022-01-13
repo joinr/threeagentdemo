@@ -12,6 +12,7 @@
    [threeagentdemo.threehelp :as threehelp]
    [threeagentdemo.testdata :as td]
    [threeagentdemo.vega :as v]
+   [threeagentdemo.script :as script]
    [cljs.core.async :as a :refer [chan put! >! <! close!]]
    [threeagentdemo.dash :as dash])
   (:require-macros [cljs.core.async :refer [go]]))
@@ -312,7 +313,7 @@
             (into [:group]))))))
 
 (defn missing-items [n]
-  (repeat n [:sprite {:source "empty.png"}]))
+  (when n (repeat n [:sprite {:source "empty.png"}])))
 
 (defn contents [location]
   (vec (concat @(th/cursor state [:contents location])
@@ -609,37 +610,73 @@
         tickstate))
     s))
 
-(defn init-entities! [ents]
-  (let [emap    (into {}
-                    (map (fn [e] [(e :id) e])) ents)
+(defn general-tick [s]  ((s :tick-fn tick-scene) s))
+
+
+;;State initialization / load
+;;===========================
+
+;;modify state with new information based on entities, works with
+;;replays as well.
+(defn init-entities [s ents]
+  (let [emap     (into {} (map (fn [e] [(e :id) e])) ents)
         contents (u/map-vals (fn [xs] (set (map :id xs)))  (group-by :location ents))
         types    (u/map-vals  (fn [xs] (set (map :id xs))) (group-by :SRC ents))
         counts   (into {} (for [[src xs] (group-by :SRC ents)]
-                            [src (frequencies (map :compo xs))]
-                            ))
+                            [src (frequencies (map :compo xs))]))
         ac-rc-count (into {} (for [[src xs] (group-by :SRC ents)]
-                               [src (frequencies (map compo-key xs))]
-                               ))
+                               [src (frequencies (map compo-key xs))]))
         titles   (into {} (map (fn [k] [k (counts->title counts k)])) (keys types))]
-        (swap! state assoc :entities emap :locations contents :types types :waiting {} :contents {}
-               :counts counts
-               :ac-rc-count ac-rc-count
-               :titles titles)))
+    (assoc s :entities emap :locations contents :types types :waiting {} :contents contents
+             :counts counts
+             :ac-rc-count ac-rc-count
+             :titles titles)))
 
-(defn init-demand! [demand]
-  (swap! state assoc :demand demand :slots demand
+(defn totals [s]
+  (->> s :entities vals
+       (reduce (fn [acc e]
+                 (case (e :location)
+                   :home (case (naive-c-rating e)
+                           (:C1 :C2) (update acc :available inc)
+                           (update acc :unavailable inc))
+                   (update acc :mission inc)))
+               {:mission 0
+                :available 0
+                :unavailable 0})))
+
+(defn init-stats [s tstart tstop empty-stats]
+  (assoc s
+         :c-day 0
+         :tstart tstart
+         :tstop  tstop
+         :stats {:deployed {:C1 0
+                            :C2 0
+                          :C3 0
+                            :C4 0
+                            :C5 0
+                            :Missing 0}
+                 :totals  (totals s)}
+         :fill-stats {:northcom empty-stats
+                      :eucom    empty-stats
+                      :centcom  empty-stats
+                      :pacom    empty-stats}
+         :render-mode :live))
+
+(defn init-demand [s demand]
+  (assoc s :demand demand :slots demand
          :conflict-demand conflict-demand
          :tconflict 450
          :period "Competition"
          :deploy-threshold 0.7))
 
 (defn compute-outline [s]
-  (let [{:keys [tstart tstop profile]} s]
+  (let [{:keys [tstart tstop demand conflict-demand tconflict]} s
+        compdemand (reduce + (vals demand))
+        confdemand (+ compdemand (reduce + (vals conflict-demand)))]
     (concat (for [t (range tstart (dec tconflict))]
               #js[#js{:c-day t :trend "Demand" :value compdemand}])
             (for [t (range tconflict tstop)]
               #js[#js{:c-day t :trend "Demand" :value confdemand}]))))
-
 
 (def empty-fill-stats
   ;;map of {src {c1 c2 <=c3 empty}}
@@ -672,18 +709,6 @@
                        (remove-watch atm id)))))
     res))
 
-(defn totals [s]
-  (->> s :entities vals
-       (reduce (fn [acc e]
-                 (case (e :location)
-                   :home (case (naive-c-rating e)
-                           (:C1 :C2) (update acc :available inc)
-                           (update acc :unavailable inc))
-                   (update acc :mission inc)))
-               {:mission 0
-                :available 0
-                :unavailable 0})))
-
 (defn percentages [counts]
   (let [total (reduce + (vals counts))]
     (reduce-kv (fn [acc k v]
@@ -696,31 +721,47 @@
                           (assoc e :readiness (rand))) td/test-entities)
         tstart 0
         tstop  1000]
-    (init-entities! randomized)
-    (init-demand! regions)
-    (swap! state assoc
-           :c-day 0
-           :tstart tstart
-           :tstop  tstop
-           :stats {:deployed {:C1 0
-                              :C2 0
-                              :C3 0
-                              :C4 0
-                              :C5 0
-                              :Missing 0}
-                   :totals  (totals @state)}
-           :fill-stats {:northcom empty-fill-stats
-                        :eucom    empty-fill-stats
-                        :centcom  empty-fill-stats
-                        :pacom    empty-fill-stats}
-           :render-mode :live)
+    (swap! state
+           #(-> %
+                (init-entities randomized)
+                (init-demand regions)
+                (init-stats  tstart tstop empty-fill-stats)))
     ;;could be cleaner.  revisit this.
     (watch-until :fill-plot-exists
                  threeagentdemo.vega/charts
                  (fn [m]
                    (when (m :fill-plot-view)
                      (v/push-extents! :fill-plot-view tstart tstop)
+                     (v/clear-data! :fill-plot-view :table-name "demandtrend")
                      (reset! demand-profile (compute-outline @state)))))))
+
+;;now we use the scripting ns to do the same.
+;;the differences here are that we pass in a different setup.
+(defn init-replay-state [vstats]
+  (let [{:keys [entities tstart tstop demand slots period frames c-day profile] :as vstats}
+        (script/init-state vstats)]
+    (swap! state
+           #(-> %
+                (init-entities (vals entities)) ;;necessary, works with entities
+                (assoc :demand demand :slots slots :c-day c-day :period period :conflict-demand {} :frames
+                       frames) ;;kinda lame.
+                ;(init-demand regions);;not necessary?
+                (init-stats  tstart tstop empty-fill-stats)
+                (assoc :tick-fn script/tick-frame))) ;;should work as normal, if regions are locked.
+    ;;could be cleaner.  revisit this.
+    (v/push-extents! :fill-plot-view tstart tstop)
+    (reset! demand-profile (script/compute-outline vstats))
+    #_
+    (watch-until :fill-plot-exists
+                 threeagentdemo.vega/charts
+                 (fn [m]
+                   (when (m :fill-plot-view)
+                     (v/push-extents! :fill-plot-view tstart tstop)
+                     (reset! demand-profile (script/compute-outline vstats)))))))
+
+(defn load-replay-state! [path]
+  (u/make-remote-call path
+     (fn [data] (init-replay-state data))))
 
 (defn reset-state! []
   (swap! state assoc :animating false)
@@ -740,6 +781,7 @@
   (add-watch demand-profile :demand-profile
              (fn [k r o n]
                (println [:updating-demand-profile!])
+               (v/clear-data! :fill-plot-view :table-name "demandtrend")
                (v/push-samples! :fill-plot-view n
                                 :table-name "demandtrend")))
   (add-watch c-day :plotting
@@ -817,7 +859,7 @@
     [fill-table (fill-stats->entries pacom)]]])
 
 (defn app [ratom]
-  (let [render-scene! (fn [dt] (swap! ratom tick-scene))
+  (let [render-scene! (fn [dt] (swap! ratom general-tick))
         nc            (th/cursor ratom [:fill-stats :northcom])
         ec            (th/cursor ratom [:fill-stats :eucom])
         cc            (th/cursor ratom [:fill-stats :centcom])

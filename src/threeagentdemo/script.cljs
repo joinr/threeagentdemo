@@ -1,5 +1,6 @@
 (ns threeagentdemo.script
-  (:require [clojure.set]))
+  (:require [clojure.set]
+            [threeagentdemo.util :as u]))
 
 ;;this is kind of janky, but it's time sensitive.
 ;;we are projectinig the readiness ratinig onto our notion of
@@ -10,7 +11,7 @@
 ;;In the very near future, we need to have actual rearmm policies
 ;;that have c5 in them.
 
-(defn upper-c
+(def upper-c
   {:c1 :C1
    :c2 :C2
    :c3 :C3
@@ -99,7 +100,7 @@
 (defn tick-moves [s moves]
   (reduce (fn [acc [mv id from to]]
             (case mv
-              :deployed  (deploy-unit s id to)
+              :deployed  (deploy-unit s id to 1) ;;deploy time is not necessary for replay, remove in future.
               :home      (send-home   s id)
               ;;ignore :dwell moves.
               acc))
@@ -126,22 +127,25 @@
              tickstate (tickstate :entities)))
 
 (defn tick-frame [tickstate]
-  (if-let [next-frame (first (tickstate :frames))]
-    (let [{:keys [t period entities moves missed]} next-frame]
-      (if (= t (inc (tickstate :c-day)))  ;;merge information from the current frame.
-        ;;move entities
-        (-> tickstate
-            (assoc :c-day t) ;;update time to frame.
-            (tick-moves    moves) ;;process entity movement.
-            (tick-entities entities)
-            ;;missed demand.
-            (assoc-in [:stats :deployed :Missing] missed)
-            (tick-period period))
-        ;;lerp from the last point, incrementing time.
-        (-> tickstate
-            (update :c-day inc)
-            lerp-frame)))
-    (assoc tickstate :animating? false)))
+  (if-let [next-frame  (first (tickstate :frames))]
+    (if (and (tickstate :animating) next-frame)
+      (let [{:keys [t period entities moves missed]} next-frame]
+        (if (= t (inc (tickstate :c-day)))  ;;merge information from the current frame.
+          ;;move entities
+          (-> tickstate
+              (assoc :c-day  t) ;;update time to frame.
+              (tick-moves    moves) ;;process entity movement.
+              (tick-entities entities)
+              ;;missed demand.
+              (assoc-in [:stats :deployed :Missing] missed)
+              (assoc :frames (rest (tickstate :frames)))
+              #_(tick-period period))
+          ;;lerp from the last point, incrementing time.
+          (-> tickstate
+              (update :c-day inc)
+              lerp-frame)))
+      tickstate)
+    (assoc tickstate :animating false)))
 
 (defn discrete-signal [xs]
   (let [final (atom nil)]
@@ -157,7 +161,7 @@
     (->>  profile
           discrete-signal
           (take-while (fn [[t _]] (<= t tstop)))
-          (map (fn [t v]
+          (map (fn [[t v]]
                  #js[#js{:c-day t :trend "Demand" :value v}])))))
 
 (def src->normal
@@ -227,5 +231,5 @@
                      (reset! demand-profile (compute-outline @state)))))))
 
 (defn read-state [m]
-  (-> (clojure.edn/read-string m)
+  (-> (cljs.reader/read-string m)
       init-state))
