@@ -634,9 +634,7 @@
          :deploy-threshold 0.7))
 
 (defn compute-outline [s]
-  (let [{:keys [tstart tstop demand conflict-demand tconflict]} s
-        compdemand (reduce + (vals demand))
-        confdemand (+ compdemand (reduce + (vals conflict-demand)))]
+  (let [{:keys [tstart tstop profile]} s]
     (concat (for [t (range tstart (dec tconflict))]
               #js[#js{:c-day t :trend "Demand" :value compdemand}])
             (for [t (range tconflict tstop)]
@@ -714,9 +712,9 @@
            :fill-stats {:northcom empty-fill-stats
                         :eucom    empty-fill-stats
                         :centcom  empty-fill-stats
-                        :pacom    empty-fill-stats})
+                        :pacom    empty-fill-stats}
+           :render-mode :live)
     ;;could be cleaner.  revisit this.
-#_    (reset! demand-profile (compute-outline @state))
     (watch-until :fill-plot-exists
                  threeagentdemo.vega/charts
                  (fn [m]

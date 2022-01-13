@@ -1,6 +1,15 @@
 (ns threeagentdemo.script
   (:require [clojure.set]))
 
+;;this is kind of janky, but it's time sensitive.
+;;we are projectinig the readiness ratinig onto our notion of
+;;c-rating for display purposes.  There is a different discrete
+;;c-rating in the policies driving this, but for now we ignore that
+;;and focus on the normalized dwell / readiness coordinate.
+
+;;In the very near future, we need to have actual rearmm policies
+;;that have c5 in them.
+
 (defn upper-c
   {:c1 :C1
    :c2 :C2
@@ -14,6 +23,17 @@
           #{:c1 :c2 :c3 :c4 :c5}
           (if (coll? s) (set s) #{s}))
        first))
+
+;;we could use this as a proxy, right now we don't have
+;;any policy with c5.  Alternate is to establish
+;;policies with c5
+(defn naive-c-rating [ent]
+  (let [r (ent :readiness)]
+    (cond (>= r 0.8) :C1
+          (>= r 0.6) :C2
+          (>= r 0.4) :C3
+          (>= r 0.2) :C4
+          :else :C5)))
 
 ;;need to enforce assumptions:
 
@@ -40,7 +60,7 @@
   (let [ent      (-> s :entities (get id))
         location (ent :location)
         ;;different...we already know.
-        c-rating (-> ent c-rating upper-c)]
+        c-rating (naive-c-rating ent) #_(-> ent c-rating upper-c)]
     (-> s
         (update-in [:locations :home] conj id)
         (update-in [:locations location] (fn [v] (disj (or v #{}) id)))
@@ -56,7 +76,7 @@
 
 (defn deploy-unit [s id location dt]
   (let [ent      (-> s :entities (get id))
-        c-rating (-> ent c-rating upper-c) ;;no longer needed, just get c-rating from state.
+        c-rating (naive-c-rating ent) #_(-> ent c-rating upper-c) ;;no longer needed, just get c-rating from state.
         icon     (ent :icon)
         c-icon   (or (get-in u/c-icons [icon c-rating])
                      (throw (ex-info "unknown sprite!" {:in [icon c-rating]})))
@@ -121,34 +141,91 @@
         (-> tickstate
             (update :c-day inc)
             lerp-frame)))
-    tickstate))
+    (assoc tickstate :animating? false)))
 
-#_
-(defn missed-demand [s] (->> s :slots vals (filter pos?) (reduce +)))
+(defn discrete-signal [xs]
+  (let [final (atom nil)]
+    (concat (for [[[tl vl] [tr vr]] (->> xs
+                                         (partition 2 1)
+                                         (mapv (fn [[l r :as v]] (reset! final r) v) ))
+                  t (range tl tr)]
+              [t vl])
+            [@final])))
 
-#_
-(defn tick-deploys [s]
-  (if-let [deps (find-deploys s)]
-    (reduce (fn [acc {:keys [id location wait-time]}]
-              (deploy-unit acc id location wait-time))
-            s deps)
-    s))
-
-#_
-(defn tick [tickstate]
-  (-> tickstate
-     (update :c-day + 1)
-     tick-home
-     tick-waits
-     tick-conflict ;;lame on purpose
-     tick-deploys
-     tick-missing))
-#_
 (defn compute-outline [s]
-  (let [{:keys [tstart tstop demand conflict-demand tconflict]} s
-        compdemand (reduce + (vals demand))
-        confdemand (+ compdemand (reduce + (vals conflict-demand)))]
-    (concat (for [t (range tstart (dec tconflict))]
-              #js[#js{:c-day t :trend "Demand" :value compdemand}])
-            (for [t (range tconflict tstop)]
-              #js[#js{:c-day t :trend "Demand" :value confdemand}]))))
+  (let [{:keys [tstart tstop profile]} s]
+    (->>  profile
+          discrete-signal
+          (take-while (fn [[t _]] (<= t tstop)))
+          (map (fn [t v]
+                 #js[#js{:c-day t :trend "Demand" :value v}])))))
+
+(def src->normal
+  {"77202K000"  "IBCT"
+   "77202K100"  "IBCT" ;;really abn but meh.
+   "47112K000"  "SBCT"
+   "87312K000"  "ABCT"})
+
+(def icons
+  {"IBCT"  "ibct.png"
+   "SBCT"  "sbct.png"
+   "ABCT"  "abct.png"})
+
+;;for now we need to clean up SRCs, remap knowns to IBCT/SBCT/ABCT....
+;;we get our vis-state map from the rendered output.
+;; {:c-day    0
+;;  :tstart   t0
+;;  :tstop    (store/gete ctx0 :parameters :LastDayDefault)
+;;  :entities init-entities
+;;  :regions  ((store/domains ctx0) :region)
+;;  ;;demand and slots don't make sense.
+;;  :demand   init-demand
+;;  :slots    init-demand
+;;  :period   (core/current-period ctx0)
+;;  :profile  (core/demand-profile ctx0)
+;;  :frames (vec (map frame->vstats (rest h)))}
+
+(defn init-state [m]
+  ;;normalize the srcs and add icons.
+  (-> m
+      (update  :entities
+               (fn [es]
+                 (reduce-kv (fn [acc e ent]
+                              (let [src (-> ent :SRC src->normal)
+                                    icon (icons src)]
+                                (assoc acc e (assoc ent :SRC src :icon icon)))) es es)))))
+
+#_
+(defn init-state! []
+  (let [randomized (map (fn [{:keys [readiness] :as e}]
+                          (assoc e :readiness (rand))) td/test-entities)
+        tstart 0
+        tstop  1000]
+    (init-entities! randomized)
+    (init-demand! regions)
+    (swap! state assoc
+           :c-day 0
+           :tstart tstart
+           :tstop  tstop
+           :stats {:deployed {:C1 0
+                              :C2 0
+                              :C3 0
+                              :C4 0
+                              :C5 0
+                              :Missing 0}
+                   :totals  (totals @state)}
+           :fill-stats {:northcom empty-fill-stats
+                        :eucom    empty-fill-stats
+                        :centcom  empty-fill-stats
+                        :pacom    empty-fill-stats})
+    ;;could be cleaner.  revisit this.
+    (watch-until :fill-plot-exists
+                 threeagentdemo.vega/charts
+                 (fn [m]
+                   (when (m :fill-plot-view)
+                     (v/push-extents! :fill-plot-view tstart tstop)
+                     (reset! demand-profile (compute-outline @state)))))))
+
+(defn read-state [m]
+  (-> (clojure.edn/read-string m)
+      init-state))
