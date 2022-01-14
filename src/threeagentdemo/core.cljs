@@ -180,7 +180,7 @@
    [:box {:width width :height height :material {:color "lightgrey"}
           :position [0 3.8 -1]
           :scale [1 1 0.03]}]
-   [:object {:position [0.5 1.8 0]
+   [:object {:position [0 1.8 -0.95]
              :scale [0.9 0.9 1.0]}
     [container 10 1
      (filterv (fn [[_ {:keys [source]}]]
@@ -457,13 +457,13 @@
 
 (def conflict-demands
   {450 {:northcom 4
-        :pacom    5
-        :eucom    7
+        :pacom    10
+        :eucom    10
         :centcom  0}
-   470 {:northcom 0
+   470 {:northcom 1
         :pacom    0
         :eucom    4
-        :centcom  0}
+        :centcom  1}
    500 {:northcom 0
         :pacom    0
         :eucom    3
@@ -571,8 +571,18 @@
             s deps)
     s))
 
+(defn update-missed-demand [s]
+  (reduce-kv (fn [acc location v]
+               (let [missed (get-in acc [:fill-stats location "Missed" "C1"])]
+                 (if (= missed v)
+                   acc
+                   (assoc-in acc [:fill-stats location "Missed" "C1"] v))))
+             s (s :slots)))
+
 (defn tick-missing [s]
-  (assoc-in s [:stats :deployed :Missing] (missed-demand s)))
+  (-> s
+      (assoc-in [:stats :deployed :Missing] (missed-demand s))
+      update-missed-demand))
 
 (defn send-home [s id]
   (let [ent      (-> s :entities (get id))
@@ -618,7 +628,7 @@
         (let [new-demand   (merge-with + added-demand (@state :demand))
               new-slots    (merge-with + added-demand (@state :slots))]
           (assoc s :demand new-demand :slots new-slots :period "Conflict"
-                 :deploy-threshold 0))
+                 :deploy-threshold 0.2))
         s))
     s))
 
@@ -679,7 +689,7 @@
          :tstop  tstop
          :stats {:deployed {:C1 0
                             :C2 0
-                          :C3 0
+                            :C3 0
                             :C4 0
                             :C5 0
                             :Missing 0}
@@ -727,13 +737,14 @@
 
 (def empty-fill-stats
   ;;map of {src {c1 c2 <=c3 empty}}
-  {"IBCT" {"C1" 0 "C2" 0 "<=C3" 0 "Empty" 0}
-   "SBCT" {"C1" 0 "C2" 0 "<=C3" 0 "Empty" 0}
-   "ABCT" {"C1" 0 "C2" 0 "<=C3" 0 "Empty" 0}})
+  {"IBCT" {"C1" 0 "C2" 0 "<=C3" 0}
+   "SBCT" {"C1" 0 "C2" 0 "<=C3" 0}
+   "ABCT" {"C1" 0 "C2" 0 "<=C3" 0}
+   "Missed" {"C1" 0 "C2" 0 "<=C3" 0}})
 
 (defn fill-stats->entries [m]
   (let [srcs (keys (first (vals m)))]
-    (apply concat ["SRC" "C1" "C2" "<=C3" "Missed"]
+    (apply concat ["SRC" "C1" "C2" "<=C3"]
            (for [[src cs] m]
              (cons src (vals cs))))))
 
@@ -822,7 +833,7 @@
         #js{:c-day t :trend "C3" :value C3}
         #js{:c-day t :trend "C4" :value C4}
         #js{:c-day t :trend "C5" :value C5}
-        #js{:c-day t :trend "Missing" :value Missing}]))
+        #js{:c-day t :trend "Missed Demand" :value Missing}]))
 
 (defn plot-watch! []
   (add-watch demand-profile :demand-profile
@@ -887,7 +898,7 @@
      :max (project-css (bnds :max))}))
 
 (defn fill-table [entries]
-  [dash/flex-table 5 entries :style (assoc dash/default-style :font-size "0.4em")])
+  [dash/flex-table 4 #_5 entries :style (assoc dash/default-style :font-size "0.5em")])
 
 (def overlay-style
  {:position "absolute" :z-index "10" :bottom "5%" :width "22%" :height "30%"
