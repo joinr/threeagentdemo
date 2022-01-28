@@ -100,8 +100,8 @@
 (defn tick-moves [s moves]
   (reduce (fn [acc [mv id _ _ from to ]]
             (case mv
-              :deployed   (deploy-unit s id to 1) ;;deploy time is not necessary for replay, remove in future.
-              :returned   (send-home   s id)
+              :deployed   (deploy-unit acc id to 1) ;;deploy time is not necessary for replay, remove in future.
+              :returned   (send-home   acc id)
               ;;ignore :dwell moves.
               acc))
           s moves))
