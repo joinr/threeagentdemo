@@ -282,7 +282,7 @@
 
 
 (def fill-spec
-  (-> {:width "container" :height 100;;:width 600, :height 200,
+  (-> {:width "container" :height "container" #_100;;:width 600, :height 200,
        "autosize" {"type" "pad",
                    "resize" true ;;maybe revisit this.
                    "contains" "padding"}
@@ -309,10 +309,11 @@
                                  :type "quantitative"
                                  #_#_:scale {:domain [0.0 1.0]}},
                             :color  {:field "trend",
-                                     :type "nominal"
-                                     :scale  {:domain (reverse ["Missed Demand" "C5" "C4" "C3" "C2"  "C1"])
-                                              :range  (reverse ["black"   (u/c->hex :C5) (u/c->hex :C4)
-                                                       (u/c->hex :C3) (u/c->hex :C2) (u/c->hex :C1)])}
+                                     :type "ordinal"
+                                     :scale  {:type "ordinal"
+                                              :domain (reverse ["Missed Demand" "C5" "C4" "C3" "C2"  "C1"])
+                                              :range  (reverse [ "black" (u/c->hex :C5) (u/c->hex :C4)
+                                                                (u/c->hex :C3) (u/c->hex :C2) (u/c->hex :C1)])}
                                      :legend  {:direction "horizontal"
                                                :orient "bottom"
                                                :layout {:bottom {:anchor "middle"}}
@@ -320,6 +321,8 @@
                                                :labelFontSize 16
                                                :symbolSize 200
                                                :title nil}}
+                            ;;links to the scale's ordering directly.
+                            :order {:field "color_trend_sort_index", :type "quantitative"}
                             :size {:value 5}}}
                {:mark "line",
                 :data

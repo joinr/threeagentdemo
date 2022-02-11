@@ -56,6 +56,9 @@
 
 ;;then the internal stats should be good to go.
 
+(defn dec-pos [n]
+  (if (zero? n) n (dec n)))
+
 ;;extract from frame.
 (defn send-home [s id]
   (let [ent      (-> s :entities (get id))
@@ -71,8 +74,9 @@
                                                                (or v [])))))
         (update-in [:slots     location] inc)
         (update-in [:entities id] assoc :wait-time 0 :readiness 0 :location :home)
-        (update-in [:stats :deployed c-rating] dec)
-        (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)] dec)
+        (update-in [:stats :deployed c-rating] #_dec dec-pos)
+        (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)]
+                   #_dec dec-pos)
         (update-in [:waiting] dissoc id))))
 
 (defn deploy-unit [s id location dt]

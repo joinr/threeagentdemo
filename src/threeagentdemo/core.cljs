@@ -898,7 +898,7 @@
      :max (project-css (bnds :max))}))
 
 (defn fill-table [entries]
-  [dash/flex-table 4 #_5 entries :style (assoc dash/default-style :font-size "0.5em")])
+  [dash/flex-table 4 #_5 entries :style (assoc dash/default-style :font-size "0.53em")])
 
 (def overlay-style
  {:position "absolute" :z-index "10" :bottom "5%" :width "22%" :height "30%"
@@ -916,7 +916,59 @@
    [:div {:style (assoc overlay-style :left "78%")}
     [fill-table (fill-stats->entries pacom)]]])
 
-(defn app [ratom]
+;;WIP
+(defn wide-page [ratom]
+  (let [render-scene! (fn [dt] (swap! ratom general-tick))
+        nc            (th/cursor ratom [:fill-stats :northcom])
+        ec            (th/cursor ratom [:fill-stats :eucom])
+        cc            (th/cursor ratom [:fill-stats :centcom])
+        pc            (th/cursor ratom [:fill-stats :pacom])
+        total-stats   (th/cursor ratom [:stats :totals])
+        fancy-percents (fn [m]
+                         (let [res (percentages m)]
+                           ["Mission" "Available" "Unavailable"
+                            (str (res :mission) "%")
+                            (str (res :available) "%")
+                            (str (res :unavailable) "%")]))
+        _              (add-watch c-day :percentages
+                          (fn [_ _ oldt newt]
+                            (when (> newt oldt)
+                              (reset! total-stats (totals @ratom)))))]
+    (fn []
+      [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%"}}
+       [:div.header {:style {:display "flex" :flex-direction "row" :width "100%" :height "100%"
+                             :justify-content "space-between"}}
+        [:div {:id "chart" :style {:flex "0.48" :display "flex" :width "48%" :height "auto" :max-width "48%"
+                                   :flex-direction "column"}}
+         [v/vega-chart "fill-plot" (assoc v/fill-spec :height 260)]]
+        [:div  {:style {:display "flex" :flex "0.5" :max-width "50%"
+                        :height  "auto"  #_#_:class "fullSize" :overflow "hidden"
+                        :justify-content "space-between"}}
+         [three-canvas "root-scene" scene render-scene!]
+         [fill-overlay @nc @ec @cc @pc]]]
+       [dash/flex-table 3 (fancy-percents @total-stats)
+        :style {:display "flex" :flex-wrap "wrap" ;:background "darkgray"
+                :font-size "2em"
+                :justify-content "space-between"}]
+       [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
+                              :justify-content "space-between"
+                              :font-size "xxx-large"}}
+        [:p {:id "period" :style {:margin "0 auto" :text-align "center" }}
+         @period #_(str "Period:"  @period)
+         ]
+        [:p {:id "c-day" :style {:margin "0 auto" :text-align "center" }}
+         ;;no idea why this causes a slow memory leak!
+         (str "Day:"  (int @c-day))
+         ]]
+       [:div.flexControlPanel {:style {:display "flex" :width "100%" :height "auto"}}
+        [:button.cesium-button {:style   {:flex "1"} :id "play" :type "button" :on-click #(play!)}
+         "play"]
+        [:button.cesium-button {:style {:flex "1"} :id "stop" :type "button" :on-click #(stop!)}
+         "stop"]
+        [:button.cesium-button {:style  {:flex "1"} :id "reset" :type "button" :on-click #(reset-state!)}
+         "reset"]]])))
+
+(defn stacked-page [ratom]
   (let [render-scene! (fn [dt] (swap! ratom general-tick))
         nc            (th/cursor ratom [:fill-stats :northcom])
         ec            (th/cursor ratom [:fill-stats :eucom])
@@ -937,7 +989,7 @@
       [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%"}}
        [:div {:id "chart-root" :style {:display "flex"}}
         [:div {:style {:flex "0.95" #_"0.95" :max-width "95%"}}
-         [v/vega-chart "fill-plot" v/fill-spec]]]
+         [v/vega-chart "fill-plot" (assoc v/fill-spec :height 100)]]]
        [dash/flex-table 3 (fancy-percents @total-stats)
         :style {:display "flex" :flex-wrap "wrap" ;:background "darkgray"
                         :font-size "1em"}]
@@ -947,7 +999,7 @@
         [fill-overlay @nc @ec @cc @pc]]
        [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
                               :justify-content "space-between"
-                              :font-size "xxx-large"}}
+                              :font-size "xx-large"}}
         [:p {:id "period" :style {:margin "0 auto" :text-align "center" }}
          @period #_(str "Period:"  @period)
          ]
@@ -963,6 +1015,14 @@
         [:button.cesium-button {:style  {:flex "1"} :id "reset" :type "button" :on-click #(reset-state!)}
          "reset"]]])))
 
+(defn page [ratom]
+  #_(stacked-page ratom)
+  (wide-page ratom)
+  #_(let [layout (@ratom :layout)]
+    (case layout
+      :stacked (stacked-page ratom)
+      :horizontal (wide-page ratom)
+      [:p (str "unknown layout!" layout)])))
 
 
 ;; conditionally start your application based on the presence of an "app" element
@@ -973,7 +1033,7 @@
           (<! (font/init!)))
         (when-not (@state :intitialized)
           (init-state!))
-        (rdom/render [app state] (.getElementById js/document "app"))
+        (rdom/render [page state] (.getElementById js/document "app"))
         (plot-watch!))))
 
 ;; specify reload hook with ^;after-load metadata
