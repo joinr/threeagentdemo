@@ -818,8 +818,10 @@
                      (reset! demand-profile (script/compute-outline vstats)))))))
 
 (defn load-replay-state! [path]
+  (println [:loading path])
   (u/make-remote-call path
-     (fn [data] (init-replay-state data))))
+                      (fn [data] (init-replay-state data)
+                        (println [:loaded path]))))
 
 (defn reset-state! []
   (swap! state assoc :animating false)
@@ -898,7 +900,8 @@
      :max (project-css (bnds :max))}))
 
 (defn fill-table [entries]
-  [dash/flex-table 4 #_5 entries :style (assoc dash/default-style :font-size "0.53em")])
+  [dash/flex-table 4 #_5 entries :style (assoc dash/default-style :font-size "0.53em")
+   :header-style (assoc dash/default-cell-style :border "solid")])
 
 (def overlay-style
  {:position "absolute" :z-index "10" :bottom "5%" :width "22%" :height "30%"
@@ -915,6 +918,32 @@
     [fill-table  (fill-stats->entries centcom)]]
    [:div {:style (assoc overlay-style :left "78%")}
     [fill-table (fill-stats->entries pacom)]]])
+
+(defn bordered [c]
+  [:div {:style {:border-style "solid"}}
+   c])
+
+(defn fill-row [northcom eucom centcom pacom]
+  [:div {:style {:display "flex" :flex-direction "row" :width "100%" :height "100%"
+                 :justify-content "space-between"
+                 :font-size "2em"}}
+   (for [e [northcom eucom centcom pacom]]
+     (bordered (fill-table (fill-stats->entries e))))
+   (comment
+   [fill-table (fill-stats->entries northcom)]
+   [fill-table (fill-stats->entries eucom)]
+   [fill-table  (fill-stats->entries centcom)]
+   [fill-table (fill-stats->entries pacom)])])
+
+(defn flex-row
+  [& contents]
+  (let [c1 (first contents)
+        attrs (if (map? c1) c1 {})
+        style (->> (get  attrs :style)
+                   (merge {:display "flex" :flex-direction "row" :width "100%" :height "100%"}))
+        contents (if (map? c1) (rest contents) contents)]
+     `[:div.header ~(assoc attrs :style style)
+       ~@contents]))
 
 ;;WIP
 (defn wide-page [ratom]
@@ -936,8 +965,17 @@
                               (reset! total-stats (totals @ratom)))))]
     (fn []
       [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%"}}
-       [:div.header {:style {:display "flex" :flex-direction "row" :width "100%" :height "100%"
-                             :justify-content "space-between"}}
+       [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
+                              :justify-content "space-between"
+                              :font-size "xxx-large"}}
+        [:p {:id "c-day" :style {:margin "0 auto" :text-align "center" }}
+         ;;no idea why this causes a slow memory leak!
+         (str "Day:"  (int @c-day))
+         ]
+        [:p {:id "period" :style {:margin "0 auto" :text-align "center" }}
+         #_@period (str "Period: "  @period)
+         ]]
+       [flex-row {:style {:justify-content "space-between"}}
         [:div {:id "chart" :style {:flex "0.48" :display "flex" :width "48%" :height "auto" :max-width "48%"
                                    :flex-direction "column"}}
          [v/vega-chart "fill-plot" (assoc v/fill-spec :height 260)]]
@@ -951,22 +989,18 @@
                 :font-size "2em"
                 :text-align "center"}
         :cell-style (assoc dash/default-cell-style :justify-content "middle")]
-       [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
-                              :justify-content "space-between"
-                              :font-size "xxx-large"}}
-        [:p {:id "period" :style {:margin "0 auto" :text-align "center" }}
-         @period #_(str "Period:"  @period)
-         ]
-        [:p {:id "c-day" :style {:margin "0 auto" :text-align "center" }}
-         ;;no idea why this causes a slow memory leak!
-         (str "Day:"  (int @c-day))
-         ]]
+       [flex-row {:style {:justify-content "space-around"}}
+        [:img {:src "northcom.png" :style { :width "7%"}}]
+        [:img {:src "eucom.png" :style {:width "7%"}}]
+        [:img {:src "centcom.png" :style {:width "7%"}}]
+        [:img {:src "pacom.png" :style {:width "7%"}}]]
+       [fill-row @nc @ec @cc @pc]
        [:div.flexControlPanel {:style {:display "flex" :width "100%" :height "100%" #_"auto"}}
-        [:button.cesium-button {:style   {:flex "1"} :id "play" :type "button" :on-click #(play!)}
+        [:button.cesium-button {:style   {:flex "1" :font-size "1em"} :id "play" :type "button" :on-click #(play!)}
          "play"]
-        [:button.cesium-button {:style {:flex "1"} :id "stop" :type "button" :on-click #(stop!)}
+        [:button.cesium-button {:style {:flex "1" :font-size "1em"} :id "stop" :type "button" :on-click #(stop!)}
          "stop"]
-        [:button.cesium-button {:style  {:flex "1"} :id "reset" :type "button" :on-click #(reset-state!)}
+        [:button.cesium-button {:style  {:flex "1" :font-size "1em"} :id "reset" :type "button" :on-click #(reset-state!)}
          "reset"]]])))
 
 (defn stacked-page [ratom]

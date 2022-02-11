@@ -18,36 +18,31 @@
 
 ;;Where src is an icon or textual src.
 ;;from https://css-tricks.com/accessible-simple-responsive-tables/
-(defn flex-table [n-cols entries & {:keys [style cell-style]
+(defn flex-table [n-cols entries & {:keys [style cell-style header-style]
                                     :or {style default-style
                                          cell-style default-cell-style}}]
-  (let [size (str (/ 100.0 n-cols) "%")
-        n (atom 0)]
+  (let [size          (str (/ 100.0 n-cols) "%")
+        n             (atom 0)
+        current-style (atom (or header-style cell-style))
+        _ (when header-style
+            (add-watch n :style-swap
+                       (fn [_ _ old new]
+                         (when (> new n-cols)
+                           (reset! current-style cell-style)
+                           (remove-watch n :style-swap)))))]
     [:div.header {:style style}
      (for [e entries]
        (let [non-zero (cond  (number? e) (not (zero? e))
                              (string? e) true #_(not= e "0")
                              :else true)
-             txt (string? e)]
-         ^{:key (swap! n inc)}
+             txt (string? e)
+             k   (swap! n inc)]
+         ^{:key k}
          [:div
-          {:style (assoc cell-style
+          {:style (assoc @current-style #_cell-style
                          :width     size
-                         :font-weight      (if non-zero "900" "normal")
-                         :background-color  (cond txt "verydarkgrey"
-                                                  non-zero "grey")
-                         :visibility        (if (or txt non-zero) "visible" "hidden"))
-           #_{:box-sizing "border-box"
-                     :flex-grow 1
-                     :flex-shrink 2
-                     :width     size
-                     :overflow  "hidden"
-                     :list-style "none"
-                     :font-weight      (if non-zero "900" "normal")
-                     :text-align "middle"
-                     :background-color  (cond txt "verydarkgrey"
-                                              non-zero "grey")
-                     :visibility        (if (or txt non-zero) "visible" "hidden")
-                     #_#_:animation "backgrounder 2s ease-in-out"}}
- 
+                         :font-weight       (if non-zero "900" "normal")
+                         :background-color  (cond txt "verydarkgrey" non-zero "grey")
+                         :visibility        (if (or txt non-zero) "visible" "hidden"))}
+
           e]))]))
