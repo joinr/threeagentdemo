@@ -7,9 +7,20 @@
 
 (def default-style {:display "flex" :flex-wrap "wrap" ;:background "darkgray"
                     :font-size "0.5em"})
+(def default-cell-style
+  {:box-sizing "border-box"
+   :flex-grow 1
+   :flex-shrink 2
+   :overflow  "hidden"
+   :list-style "none"
+   :text-align "middle"
+   #_#_:animation "backgrounder 2s ease-in-out"})
+
 ;;Where src is an icon or textual src.
 ;;from https://css-tricks.com/accessible-simple-responsive-tables/
-(defn flex-table [n-cols entries & {:keys [style] :or {style default-style}}]
+(defn flex-table [n-cols entries & {:keys [style cell-style]
+                                    :or {style default-style
+                                         cell-style default-cell-style}}]
   (let [size (str (/ 100.0 n-cols) "%")
         n (atom 0)]
     [:div.header {:style style}
@@ -20,17 +31,23 @@
              txt (string? e)]
          ^{:key (swap! n inc)}
          [:div
-          {:style {:box-sizing "border-box"
-                   :flex-grow 1
-                   :flex-shrink 2
-                   :width     size
-                   :overflow  "hidden"
-                   :list-style "none"
-                   :font-weight      (if non-zero "900" "normal")
-                   :text-align "middle"
-                   :background-color  (cond txt "verydarkgrey"
-                                            non-zero "grey")
-                   :visibility        (if (or txt non-zero) "visible" "hidden")
-                   #_#_:animation "backgrounder 2s ease-in-out"}}
+          {:style (assoc cell-style
+                         :width     size
+                         :font-weight      (if non-zero "900" "normal")
+                         :background-color  (cond txt "verydarkgrey"
+                                                  non-zero "grey")
+                         :visibility        (if (or txt non-zero) "visible" "hidden"))
+           #_{:box-sizing "border-box"
+                     :flex-grow 1
+                     :flex-shrink 2
+                     :width     size
+                     :overflow  "hidden"
+                     :list-style "none"
+                     :font-weight      (if non-zero "900" "normal")
+                     :text-align "middle"
+                     :background-color  (cond txt "verydarkgrey"
+                                              non-zero "grey")
+                     :visibility        (if (or txt non-zero) "visible" "hidden")
+                     #_#_:animation "backgrounder 2s ease-in-out"}}
  
           e]))]))

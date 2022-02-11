@@ -945,11 +945,12 @@
                         :height  "auto"  #_#_:class "fullSize" :overflow "hidden"
                         :justify-content "space-between"}}
          [three-canvas "root-scene" scene render-scene!]
-         [fill-overlay @nc @ec @cc @pc]]]
+         #_[fill-overlay @nc @ec @cc @pc]]]
        [dash/flex-table 3 (fancy-percents @total-stats)
         :style {:display "flex" :flex-wrap "wrap" ;:background "darkgray"
                 :font-size "2em"
-                :justify-content "space-between"}]
+                :text-align "center"}
+        :cell-style (assoc dash/default-cell-style :justify-content "middle")]
        [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
                               :justify-content "space-between"
                               :font-size "xxx-large"}}
@@ -960,7 +961,7 @@
          ;;no idea why this causes a slow memory leak!
          (str "Day:"  (int @c-day))
          ]]
-       [:div.flexControlPanel {:style {:display "flex" :width "100%" :height "auto"}}
+       [:div.flexControlPanel {:style {:display "flex" :width "100%" :height "100%" #_"auto"}}
         [:button.cesium-button {:style   {:flex "1"} :id "play" :type "button" :on-click #(play!)}
          "play"]
         [:button.cesium-button {:style {:flex "1"} :id "stop" :type "button" :on-click #(stop!)}
