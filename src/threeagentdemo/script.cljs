@@ -57,6 +57,8 @@
 ;;then the internal stats should be good to go.
 
 (defn dec-pos [n]
+  (dec n)
+  #_
   (if (zero? n) n (dec n)))
 
 ;;extract from frame.
@@ -100,11 +102,40 @@
         (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)] inc)
         (assoc-in  [:waiting id] dt))))
 
+(defn re-deploy-unit [s id location dt]
+  (let [ent      (-> s :entities (get id))]
+    (if (= (ent :location) location) ;;short circuit if region is the same.
+      s
+      (let [c-rating (naive-c-rating ent) #_(-> ent c-rating upper-c) ;;no longer needed, just get c-rating from state.
+            icon     (ent :icon)
+            c-icon   (or (get-in u/c-icons [icon c-rating])
+                         (throw (ex-info "unknown sprite!" {:in [icon c-rating]})))
+            from     (ent :location)]
+        (-> s
+            (update-in [:locations from] disj id)
+            (update-in [:locations location] (fn [v] (conj (or v #{}) id)))
+            (update-in [:contents  location] (fn [v]
+                                               (u/insert-by (or v [])
+                                                            (fn [itm] (-> itm second :source))
+                                                            ^{:id id}
+                                                            [:sprite {:source c-icon #_(ent :icon)}])))
+            (update-in [:contents  from] (fn [v] (vec (remove  (fn [v]
+                                                                     (= (-> v meta :id) id))
+                                                                   (or v [])))))
+            (update-in [:slots     location] dec)
+            (update-in [:slots     from] inc)
+            (update-in [:entities id] assoc  :wait-time dt :location location)
+                                        ;(update-in [:stats :deployed c-rating] inc)
+            (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)] inc)
+            (update-in [:fill-stats from     (ent :SRC) (u/c-rating->fill-stat c-rating)] dec)
+            (assoc-in  [:waiting id] dt))))))
+
 ;;moves consist of [:deployed|:home id from to]
 (defn tick-moves [s moves]
   (reduce (fn [acc [mv id _ _ from to ]]
             (case mv
-              :deployed   (deploy-unit acc id to 1) ;;deploy time is not necessary for replay, remove in future.
+              :deployed    (deploy-unit acc id to 1) ;;deploy time is not necessary for replay, remove in future.
+              :re-deployed (re-deploy-unit acc id to 1) ;;deploy time is not necessary...
               :returned   (send-home   acc id)
               ;;ignore :dwell moves.
               acc))
@@ -163,6 +194,20 @@
           tickstate)
         (assoc tickstate :animating false))
       tickstate)))
+
+(defn test-frames [init-state]
+  (->> (iterate tick-frame (assoc init-state :animating true))
+       (take-while :animating)
+       (filter (fn [st] (zero? (mod (st :ticks) 2))))
+       (map (fn [st] [(st :c-day) st]))))
+
+(defn frame-where [f xs]
+  (some (fn [[t frm]] (when (f frm) frm)) xs))
+
+(defn frame-at [t xs] (frame-where (fn [frm] (= (frm :c-day) t)) xs))
+
+(defn count-locs [frm]
+  (reduce + (map count (vals (frm :locations)))))
 
 (defn discrete-signal [xs]
   (let [final (atom nil)]

@@ -335,6 +335,12 @@
            :material (get-mat "black")}]
     [icons-at-home rc-icons]]])
 
+(defn entity-count [counts src compo]
+  (or (some-> counts
+              (get src)
+              (get compo))
+      0))
+
 ;; Root component render function
 (defn scene []
   (let [ticks @(th/cursor state [:ticks])
@@ -342,12 +348,10 @@
         sin (.sin js/Math (/ ticks 100))
         cos (.cos js/Math (/ ticks 100))
         {:strs [IBCT ABCT SBCT]} (grouped-entities-at-home @state)
-        abcts (concat (ABCT "AC") (ABCT "RC"))
-        sbcts (concat (SBCT "AC") (SBCT "RC"))
-        ibcts (concat (IBCT "AC") (IBCT "RC"))
+        abcts (concat (get ABCT "AC") (get ABCT "RC"))
+        sbcts (concat (get SBCT "AC") (get SBCT "RC"))
+        ibcts (concat (get IBCT "AC") (get IBCT "RC"))
         counts (@state :ac-rc-count)
-        sbct-offset (* +sprite-width+ (inc ((counts "SBCT") "AC")))
-        ibct-offset (* +sprite-width+ (inc ((counts "IBCT") "AC")))
         titles (@state :titles)]
     [:object
      #_[:ambient-light {:intensity 0.6}]
@@ -391,31 +395,17 @@
       ;;have to place these the in top level a
       [compo-icons {:position [-11.75 0 -8.8]
                     :scale [0.4 0.4 1]}
-       (inc ((counts "ABCT") "AC")) (ABCT "AC") (ABCT "RC")]
-
+       (inc (entity-count counts "ABCT" "AC")) (get ABCT "AC") (get ABCT "RC")]
       [:object {:position [1.5 0 0]}
        [racetrack (titles "IBCT") 18 {:title-position [-2 4.25 0.1]}]]
       [compo-icons {:position [-5 0 -8.8]
                     :scale    [0.4 0.4 1]}
-       (+ ((counts "IBCT") "AC") 5) (IBCT "AC") (IBCT "RC")]
+       (+ (entity-count counts "IBCT" "AC")  5) (get IBCT "AC") (get IBCT "RC")]
       [:object {:position [11.15 0 0]}
        [racetrack (titles "SBCT") 6 {:title-position  [-4 4.25 0.1]}]]
       [compo-icons {:position [9.5 0 -8.8]
                     :scale    [0.4 0.4  1]}
-       ((counts "SBCT") "AC") (SBCT "AC") (SBCT "RC")]]
-
-     (when (@state :showbox)
-       [:object {:rotation [1 sin 1]}
-       [:object {:position [(+ -5.0 sin) -2.0 -5.0]}
-        [row-of-boxes 10 "green"]]])
-     #_
-       [:object {:position [-10 3 -10]}
-        [:sphere {:radius   1
-                  :scale    [cos cos cos]
-                  :material {:color "blue"}}]]
-       #_[:object {:position [0 0 -1] #_[0 200 -1000]
-               :scale    [1 -1 1]}
-          [u/svg {:source "World_map_-_low_resolution.svg" #_"Ghostscript_Tiger.svg" #_"World_map_(Miller_cylindrical_projection,_blank).svg"}]]]))
+       (entity-count counts "SBCT" "AC") (get SBCT "AC") (get SBCT "RC")]]]))
 
 (defn three-canvas [name f on-before-render]
   (r/create-class
