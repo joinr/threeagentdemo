@@ -364,10 +364,10 @@
                 :scale [40 40 1]}
        [u/sprite {:source "1024px-BlankMap-World-Flattened.svg.png"}]]
       [:group {:position [0 -2 0]}
-       [northcom font (contents :northcom) #_@(th/cursor state [:contents :northcom])]
-       [eucom    font (contents :eucom) #_@(th/cursor state [:contents :eucom])]
-       [centcom  font (contents :centcom) #_@(th/cursor state [:contents :centcom])]
-       [pacom    font (contents :pacom) #_@(th/cursor state [:contents :pacom])]]]
+       [northcom font (contents :northcom)]
+       [eucom    font (contents :eucom)   ]
+       [centcom  font (contents :centcom) ]
+       [pacom    font (contents :pacom)   ]]]
      [:group   {:position [0 -6.5 0]}
       [:plane  {:position [0 1.05  -9]
                 :width 32 :height 5 :material {:color "white"}}]
