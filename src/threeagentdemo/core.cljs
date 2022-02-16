@@ -981,9 +981,13 @@
         :cell-style (assoc dash/default-cell-style :justify-content "middle")]
        [flex-row {:style {:justify-content "space-around"}}
         [:img {:src "northcom.png" :style { :width "7%"}}]
+        [:p {:style {:font-size "1.5em"}} "USNORTHCOM" ]
         [:img {:src "eucom.png" :style {:width "7%"}}]
+        [:p {:style {:font-size "1.5em"}} "USEUCOM" ]
         [:img {:src "centcom.png" :style {:width "7%"}}]
-        [:img {:src "pacom.png" :style {:width "7%"}}]]
+        [:p {:style {:font-size "1.5em"}} "USCENTCOM" ]
+        [:img {:src "pacom.png" :style {:width "7%"}}]
+        [:p {:style {:font-size "1.5em"}} "USINDOPACOM" ]]
        [fill-row @nc @ec @cc @pc]
        [:div.flexControlPanel {:style {:display "flex" :width "100%" :height "100%" #_"auto"}}
         [:button.cesium-button {:style   {:flex "1" :font-size "1em"} :id "play" :type "button" :on-click #(play!)}

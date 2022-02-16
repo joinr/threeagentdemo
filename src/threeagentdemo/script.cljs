@@ -57,8 +57,8 @@
 ;;then the internal stats should be good to go.
 
 (defn dec-pos [n]
-  (dec n)
-  #_
+  #_(dec n)
+  
   (if (zero? n) n (dec n)))
 
 ;;extract from frame.
