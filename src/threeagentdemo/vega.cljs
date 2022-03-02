@@ -5,6 +5,7 @@
              [vega-tools.validate :refer [check]]
              [promesa.core :as p]
              [reagent.core :as r]
+             [reagent.dom :as rd]
              [cljs-bean.core :refer [bean ->clj ->js]]
              [clojure.core.async :as a]
              [threeagentdemo.util :as u]))
@@ -286,7 +287,7 @@
        "autosize" {"type" "pad",
                    "resize" true ;;maybe revisit this.
                    "contains" "padding"}
-       :title {:text "Fill Over Time"
+       :title {:text "Utilization Over Time"
                :fontSize 22}
        :params [{:name "xmin", :value 0}
                 {:name "xmax", :value 1}
@@ -344,7 +345,8 @@
                                                :labelFontSize 16
                                                :symbolSize 200
                                                :title nil}}
-                            :size {:value 2}}}]}
+                            :size {:value 2}}}]
+       }
       (merge dark-theme)
       #_clj->js))
 
@@ -383,7 +385,7 @@
       :reagent-render (fn [] [:div])
       :component-did-mount
       (fn [this]
-        (let [promise (.then (js/vegaEmbed (r/dom-node this) spec)
+        (let [promise (.then (js/vegaEmbed (rd/dom-node this) spec)
                              (fn [view]
                                (swap! charts assoc vw view)
                                #_(.update view)))]
@@ -394,7 +396,7 @@
             (.update view)))
       #_:component-will-update
       #_(fn [this]
-          (let [view (chart {:el (r/dom-node this)})
+          (let [view (chart {:el (rd/dom-node this)})
                 _    (swap! app-state assoc :view view)]
             (.update view)))})))
 

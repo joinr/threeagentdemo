@@ -31,7 +31,7 @@
                            (reset! current-style cell-style)
                            (remove-watch n :style-swap)))))]
     [:div.header {:style style}
-     (for [e entries]
+      (for [e entries]
        (let [non-zero (cond  (number? e) (not (zero? e))
                              (string? e) true #_(not= e "0")
                              :else true)

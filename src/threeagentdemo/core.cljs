@@ -183,17 +183,19 @@
    [:object {:position [0 1.8 -0.95]
              :scale [0.9 0.9 1.0]}
     [container 10 1
-     (filterv (fn [[_ {:keys [source]}]]
-                (clojure.string/includes? source "abct")) items)]
+     (filterv (fn [[_ {:keys [source props]}]]
+                (or (clojure.string/includes? source "abct")
+                    (some-> props :SRC (= "ABCT")))) items)]
     [translate [0.5 2.7 0]
      [container 10 1
-      (filterv (fn [[_ {:keys [source]}]] 
-                 (clojure.string/includes? source "ibct")) items)]
+      (filterv (fn [[_ {:keys [source props]}]]
+                 (or (clojure.string/includes? source "ibct")
+                     (some-> props :SRC (= "IBCT")))) items)]
      [translate [0.5 2 0]
       [container 10 1
-       (filterv (fn [[_ {:keys [source]}]]
+       (filterv (fn [[_ {:keys [source props]}]]
                   (or (clojure.string/includes? source "sbct")
-                      (clojure.string/includes? source "empty"))) items)]]]]])
+                      (some-> props :SRC (= "SBCT")))) items)]]]]])
 
 (defn northcom [font items]
   [id :northcom
@@ -312,12 +314,34 @@
                         :position [(offset) (* (ent :readiness) 7) 0]}])
             (into [:group]))))))
 
-(defn missing-items [n]
-  (when n (repeat n [:sprite {:source "empty.png"}])))
+(defn missing-items
+  ([n m]
+   (when n (repeat n [:sprite {:source "empty.png" :props m}])))
+  ([n] (missing-items n {})))
+
+;;we can grab the missed units by src.
+;;maybe we group contents by src...
+
+;;we now group-by a location's contentes by src, then concat
+;;the missing items on to each SRC track, returning the resulting
+;;vector.
+(defn icon-src [icon]
+  (let [id (-> icon meta :id)]
+    (get-in @state [:entities id :SRC])))
 
 (defn contents [location]
+  (let [src-stats  @(th/cursor state [:fill-stats location])
+        src-missing (reduce-kv (fn [acc src stats]
+                                 (assoc acc src (get stats "Missed" 0))) {} src-stats)]
+    (->> (for [xs (partition-by icon-src @(th/cursor state [:contents location]))]
+           (let [src (icon-src (first xs))
+                 missed (src-missing src)]
+             (concat xs (missing-items missed {:SRC src}))))
+         (apply concat)
+         vec)
+    #_
   (vec (concat @(th/cursor state [:contents location])
-               (missing-items @(th/cursor state [:slots location])))))
+               (missing-items @(th/cursor state [:slots location]))))))
 
 (defn counts->title [s src]
   (let [cs    (get s src {"AC" 0 "NG" 0 "USAR" 0})
@@ -561,7 +585,20 @@
             s deps)
     s))
 
+#_
 (defn update-missed-demand [s]
+  (reduce-kv (fn [acc location v]
+               (let [missed (get-in acc [:fill-stats location "Missed" "C1"])]
+                 (if (= missed v)
+                   acc
+                   (assoc-in acc [:fill-stats location "Missed" "C1"] v))))
+             s (s :slots)))
+
+;;For now we either neuter this to eliminate missed demand, or we
+;;add random misses per SRC.  For expedience, I just ignore it for now.
+(defn update-missed-demand [s]
+  s
+  #_
   (reduce-kv (fn [acc location v]
                (let [missed (get-in acc [:fill-stats location "Missed" "C1"])]
                  (if (= missed v)
@@ -727,14 +764,13 @@
 
 (def empty-fill-stats
   ;;map of {src {c1 c2 <=c3 empty}}
-  {"IBCT" {"C1" 0 "C2" 0 "<=C3" 0}
-   "SBCT" {"C1" 0 "C2" 0 "<=C3" 0}
-   "ABCT" {"C1" 0 "C2" 0 "<=C3" 0}
-   "Missed" {"C1" 0 "C2" 0 "<=C3" 0}})
+  {"IBCT" {"C1" 0 "C2" 0 "<=C3" 0 "Missed" 0}
+   "SBCT" {"C1" 0 "C2" 0 "<=C3" 0 "Missed" 0}
+   "ABCT" {"C1" 0 "C2" 0 "<=C3" 0 "Missed" 0}})
 
 (defn fill-stats->entries [m]
   (let [srcs (keys (first (vals m)))]
-    (apply concat ["SRC" "C1" "C2" "<=C3"]
+    (apply concat ["SRC" "C1" "C2" "<=C3" "Missed"]
            (for [[src cs] m]
              (cons src (vals cs))))))
 
@@ -890,7 +926,7 @@
      :max (project-css (bnds :max))}))
 
 (defn fill-table [entries]
-  [dash/flex-table 4 #_5 entries :style (assoc dash/default-style :font-size "0.53em")
+  [dash/flex-table 5 entries :style (assoc dash/default-style :font-size "0.53em")
    :header-style (assoc dash/default-cell-style :border "solid")])
 
 (def overlay-style

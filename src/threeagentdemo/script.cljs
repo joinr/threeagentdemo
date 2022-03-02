@@ -18,6 +18,20 @@
    :c4 :C4
    :c5 :C5})
 
+(def src->normal
+  {"77202K000"  "IBCT"
+   "77202K100"  "IBCT" ;;really abn but meh.
+   "47112K000"  "SBCT"
+   "87312K000"  "ABCT"})
+
+;;little wrapper for legacy period names.  simplification.
+(def period-labels
+  {"PreSurge" "Competition"
+   "Surge"    "Conflict"})
+
+(defn period->normal [period]
+  (or (period-labels period) period))
+
 ;;cribbed from m4.
 (defn c-rating [s]
   (->> (clojure.set/intersection
@@ -56,10 +70,11 @@
 
 ;;then the internal stats should be good to go.
 
+;;hack..we have negatives show up, need to find and fix.
 (defn dec-pos [n]
-  #_(dec n)
-  
-  (if (zero? n) n (dec n)))
+  (dec n)
+  #_
+  (max 0 (dec n)))
 
 ;;extract from frame.
 (defn send-home [s id]
@@ -87,7 +102,8 @@
         icon     (ent :icon)
         c-icon   (or (get-in u/c-icons [icon c-rating])
                      (throw (ex-info "unknown sprite!" {:in [icon c-rating]})))
-        from     (ent :location)]
+        from     (ent :location)
+        _        (println [:deploying id :from from :to location :c-rating c-rating :t (s :c-day) ent])]
     (-> s
         (update-in [:locations from] disj id)
         (update-in [:locations location] (fn [v] (conj (or v #{}) id)))
@@ -96,7 +112,7 @@
                                                       (fn [itm] (-> itm second :source))
                                                       ^{:id id}
                                                       [:sprite {:source c-icon #_(ent :icon)}])))
-        (update-in [:slots     location] dec)
+        (update-in [:slots     location] #_dec dec-pos)
         (update-in [:entities id] assoc  :wait-time dt :location location)
         (update-in [:stats :deployed c-rating] inc)
         (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)] inc)
@@ -106,7 +122,7 @@
   (let [ent      (-> s :entities (get id))]
     (if (= (ent :location) location) ;;short circuit if region is the same.
       s
-      (let [c-rating (naive-c-rating ent) #_(-> ent c-rating upper-c) ;;no longer needed, just get c-rating from state.
+      (let [c-rating (naive-c-rating ent)
             icon     (ent :icon)
             c-icon   (or (get-in u/c-icons [icon c-rating])
                          (throw (ex-info "unknown sprite!" {:in [icon c-rating]})))
@@ -122,12 +138,12 @@
             (update-in [:contents  from] (fn [v] (vec (remove  (fn [v]
                                                                      (= (-> v meta :id) id))
                                                                    (or v [])))))
-            (update-in [:slots     location] dec)
+            (update-in [:slots     location] dec-pos #_dec)
             (update-in [:slots     from] inc)
             (update-in [:entities id] assoc  :wait-time dt :location location)
                                         ;(update-in [:stats :deployed c-rating] inc)
             (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)] inc)
-            (update-in [:fill-stats from     (ent :SRC) (u/c-rating->fill-stat c-rating)] dec)
+            (update-in [:fill-stats from     (ent :SRC) (u/c-rating->fill-stat c-rating)] #_dec dec-pos)
             (assoc-in  [:waiting id] dt))))))
 
 ;;moves consist of [:deployed|:home id from to]
@@ -150,11 +166,34 @@
                      olds ents)
           (assoc s :entities))))
 
+(defn zero-misses [s]
+  (let [stats  (get s :fill-stats)
+        zeroed (reduce-kv (fn [acc region src-trends]
+                            (assoc acc region
+                                   (reduce-kv (fn [acc src trends]
+                                                (if (pos? (trends "Missed"))
+                                                  (assoc acc src (assoc trends "Missed" 0))
+                                                  acc))
+                                              src-trends src-trends)))
+                          stats stats)]
+    (assoc s :fill-stats zeroed)))
+
+;;given a map of {region {src missed}}
+;;update the fill-stats for the missed trend in the region.
+(defn tick-misses [s misses]
+  (if (seq misses)
+    (reduce-kv (fn [acc region m]
+                 (reduce-kv (fn [acc src missed]
+                              (assoc-in acc [:fill-stats region
+                                             (or (src->normal src) src)
+                                             "Missed"]
+                                        missed)) acc m)) s misses)
+    (zero-misses s)))
+
 (defn tick-period [s frm]
-  (if (= (s :period) (frm :period))
+  (if (= (s :period) (period->normal (frm :period)))
     s
-    (assoc s :period (frm :period))
-  #_(u/assoc-change s frm :period)))
+    (assoc s :period (period->normal (frm :period)))))
 
 ;;since we have velocities, we can lerp entities by adding to their readiness
 ;;component.  if we have a frame, we just merge the entity data in from it.
@@ -176,7 +215,7 @@
     (if (zero? (mod ticks 2))
       (if-let [next-frame  (first (tickstate :frames))]
         (if (and (tickstate :animating) next-frame)
-          (let [{:keys [t entities moves missed]} next-frame]
+          (let [{:keys [t entities moves total-missed misses]} next-frame]
             (if (= t (inc (tickstate :c-day)))  ;;merge information from the current frame.
               ;;move entities
               (-> tickstate
@@ -184,7 +223,8 @@
                   (tick-moves    moves) ;;process entity movement.
                   (tick-entities entities)
                   ;;missed demand.
-                  (assoc-in [:stats :deployed :Missing] missed)
+                  (assoc-in [:stats :deployed :Missing] total-missed)
+                  (tick-misses misses)
                   (assoc :frames (rest (tickstate :frames)))
                   (tick-period next-frame))
               ;;lerp from the last point, incrementing time.
@@ -225,12 +265,6 @@
           (take-while (fn [[t _]] (<= t tstop)))
           (map (fn [[t v]]
                  #js[#js{:c-day t :trend "Demand" :value v}])))))
-
-(def src->normal
-  {"77202K000"  "IBCT"
-   "77202K100"  "IBCT" ;;really abn but meh.
-   "47112K000"  "SBCT"
-   "87312K000"  "ABCT"})
 
 (def icons
   {"IBCT"  "ibct.png"
