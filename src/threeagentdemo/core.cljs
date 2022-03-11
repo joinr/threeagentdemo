@@ -98,6 +98,16 @@
   (into [:object {:position [x y z]}]
          objs))
 
+;;we can grab the missed units by src.
+;;maybe we group contents by src...
+
+;;we now group-by a location's contentes by src, then concat
+;;the missing items on to each SRC track, returning the resulting
+;;vector.
+(defn icon-entity [icon]
+  (let [id (-> icon meta :id)]
+    (get-in @state [:entities id])))
+
 ;;if we can get the world bounds of l and r, we can apply translations to move them together.
 (defn beside
   "Places r beside l in the plane, affects no vertical transfom."
@@ -185,17 +195,76 @@
                   (or (clojure.string/includes? source "sbct")
                       (some-> props :SRC (= "SBCT")))) items)]]]]])
 
+(defn split-cocom [position-scale  width height title font items]
+  (let [keyf (u/memo-1 (fn [itm]
+                       ((juxt :SRC :compo) (icon-entity itm))))
+        grouped (group-by keyf items)]
+  [:object position-scale
+   [:object {:position [-3.25 8 #_7 -0.99]
+             :scale    [1 1 0.1]}
+    [:text {:text title
+            :material (get-mat "black")
+            :font font
+            :height 0.1
+            :size 0.8}]]
+   [:box {:width width :height height :material {:color "lightgrey"}
+          :position [0 3.8 -1]
+          :scale [1 1 0.03]}]
+   [:box {:width 0.1 :height height :material {:color "black"}
+          :position [0 (- (/ height 2.0) 0.2) -1]
+          :scale [1 1 0.03]}]
+   [:object {:position [0 1.8 -0.95]
+             :scale [0.9 0.9 1.0]}
+    [translate [-3.0 0 0]
+     [container 5 1
+      (grouped ["ABCT" "AC"])]]
+
+    [translate [3.0 0 0]
+     [container 5 1
+      (grouped ["ABCT" "NG"])]]
+
+    [translate [0.5 4 0]
+     [translate [-3.0 0 0]
+      [container 5 1
+       (grouped ["IBCT" "AC"])]]
+     [translate [3.0 0 0]
+      [container 5 1
+       (grouped ["IBCT" "NG"])]]]
+
+    [translate [0.5 6 0]
+     [translate [-3.0 0 0]
+      [container 5 1
+       (grouped ["SBCT" "AC"])]]
+     [translate [3.0 0 0]
+      [container 5 1
+       (grouped ["SBCT" "NG"])]]]]]))
+
 (defn northcom [font items]
   [id :northcom
    [cocom {:position [-9.5 0 -10]
            :scale    [0.5 0.5 0.5]}
     10.5  6 "USNORTHCOM" font items]])
 
+(defn split-northcom [font items]
+  [id :northcom
+   [split-cocom {:position [-9.5 0 -10]
+           :scale    [0.5 0.5 0.5]}
+    12 8 "USNORTHCOM" font items]])
+
 (defn eucom [font items]
   [id :eucom
-   [cocom {:position [-3 0 -10]
-           :scale    [0.5 0.5 0.5]}
-    10.5  6 "USEUCOM" font items]])
+   [cocom
+    {:position [-3 0 -10]
+     :scale    [0.5 0.5 0.5]}
+    10.5 6 "USEUCOM" font items]])
+
+;;redundant for now...
+(defn split-eucom [font items]
+  [id :eucom
+   [split-cocom
+    {:position [-3 0 -10]
+     :scale    [0.5 0.5 0.5]}
+    12 8 "USEUCOM" font items]])
 
 (defn centcom [font items]
   [id :centcom
@@ -203,11 +272,24 @@
             :scale    [0.5 0.5 0.5]}
     10.5  6 "USCENTCOM" font items]])
 
+(defn split-centcom [font items]
+  [id :centcom
+   [split-cocom  {:position [3.5 0 -10]
+            :scale    [0.5 0.5 0.5]}
+    12 8 "USCENTCOM" font items]])
+
+
 (defn pacom [font items]
   [id :pacom
    [cocom   {:position [10 0 -10]
              :scale    [0.5 0.5 0.5]}
     10.5  6 "USINDOPACOM" font items]])
+
+(defn split-pacom [font items]
+  [id :pacom
+   [split-cocom   {:position [10 0 -10]
+             :scale    [0.5 0.5 0.5]}
+    12 8 "USINDOPACOM" font items]])
 
 (defn southcom [font items]
   [id :pacom
@@ -307,15 +389,7 @@
    (when n (repeat n [:sprite {:source "empty.png" :props m}])))
   ([n] (missing-items n {})))
 
-;;we can grab the missed units by src.
-;;maybe we group contents by src...
 
-;;we now group-by a location's contentes by src, then concat
-;;the missing items on to each SRC track, returning the resulting
-;;vector.
-(defn icon-entity [icon]
-  (let [id (-> icon meta :id)]
-    (get-in @state [:entities id])))
 
 
 (defn contents [location]
@@ -367,7 +441,8 @@
         sbcts (concat (get SBCT "AC") (get SBCT "RC"))
         ibcts (concat (get IBCT "AC") (get IBCT "RC"))
         counts (@state :ac-rc-count)
-        titles (@state :titles)]
+        titles (@state :titles)
+        split? (= (@state :containers) :split)]
     [:object
      #_[:ambient-light {:intensity 0.6}]
      [:object {:position [0 0 5]}
@@ -379,10 +454,10 @@
                 :scale [40 40 1]}
        [u/sprite {:source "1024px-BlankMap-World-Flattened.svg.png"}]]
       [:group {:position [-0.2 -2 0]}
-       [northcom font (contents :northcom)]
-       [eucom    font (contents :eucom)   ]
-       [centcom  font (contents :centcom) ]
-       [pacom    font (contents :pacom)   ]]]
+       [(if split? split-northcom northcom) font (contents :northcom)]
+       [(if split? split-eucom    eucom)    font (contents :eucom)   ]
+       [(if split? split-centcom  centcom)  font (contents :centcom) ]
+       [(if split? split-pacom    pacom)    font (contents :pacom)   ]]]
      [:group   {:position [0 -6.5 0]}
       [:plane  {:position [0 1.05  -9]
                 :width 32 :height 5 :material {:color "white"}}]

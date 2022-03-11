@@ -10,4 +10,5 @@
 (defonce state (th/atom {:animating true
                          :ticks 0
                          :sphere 0
-                         :layout :stacked}))
+                         :layout :stacked
+                         :containers :split}))
