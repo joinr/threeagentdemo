@@ -14,6 +14,15 @@
   (reduce-kv (fn [acc k v]
                (assoc acc k (f v))) {} m))
 
+(defn memo-1 [f]
+  (let [cache (js/Map.)]
+    (fn [x]
+      (if-let [res (.get cache x)]
+        res
+        (let [v (f x)
+              _ (.set cache x v)]
+          v)))))
+
 (defn assoc-change [l r k]
   (let [lv (l k)
         rv (r k)]

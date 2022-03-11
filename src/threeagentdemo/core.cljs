@@ -25,18 +25,6 @@
 ;;state now lives in threeagentdemo.state/state
 ;;but we refer to it locally, so api hasn't changed.
 
-;; Form-1 component example
-(defn color-box [color size]
-  [:box {:dims [size size size]
-         :material {:color color}}])
-
-(defn row-of-boxes [count color]
-  [:object
-   (for [i (range count)]
-     [:box {:position [i 0 0]
-            :material {:color color}}])])
-
-
 ;;add some sprites...
 (defn id [id object]
   (with-meta object
@@ -170,13 +158,13 @@
 
 (defn cocom [position-scale  width height title font items]
   [:object position-scale
-   [:object {:position [-2.25 7 -0.99]
+   [:object {:position [-3.25 7 -0.99]
              :scale    [1 1 0.1]}
     [:text {:text title
             :material (get-mat "black")
             :font font
             :height 0.1
-            :size 0.6}]]
+            :size 0.8}]]
    [:box {:width width :height height :material {:color "lightgrey"}
           :position [0 3.8 -1]
           :scale [1 1 0.03]}]
@@ -199,19 +187,19 @@
 
 (defn northcom [font items]
   [id :northcom
-   [cocom {:position [-10 0 -10]
+   [cocom {:position [-9.5 0 -10]
            :scale    [0.5 0.5 0.5]}
     10.5  6 "USNORTHCOM" font items]])
 
 (defn eucom [font items]
   [id :eucom
-   [cocom {:position [-2 0 -10]
+   [cocom {:position [-3 0 -10]
            :scale    [0.5 0.5 0.5]}
     10.5  6 "USEUCOM" font items]])
 
 (defn centcom [font items]
   [id :centcom
-   [cocom  {:position [4 0 -10]
+   [cocom  {:position [3.5 0 -10]
             :scale    [0.5 0.5 0.5]}
     10.5  6 "USCENTCOM" font items]])
 
@@ -325,18 +313,21 @@
 ;;we now group-by a location's contentes by src, then concat
 ;;the missing items on to each SRC track, returning the resulting
 ;;vector.
-(defn icon-src [icon]
+(defn icon-entity [icon]
   (let [id (-> icon meta :id)]
-    (get-in @state [:entities id :SRC])))
+    (get-in @state [:entities id])))
+
 
 (defn contents [location]
   (let [src-stats  @(th/cursor state [:fill-stats location])
         src-missing (reduce-kv (fn [acc src stats]
-                                 (assoc acc src (get stats "Missed" 0))) {} src-stats)]
+                                 (assoc acc src (get stats "Missed" 0))) {} src-stats)
+        icon-src (u/memo-1 (fn [icon] (-> icon icon-entity :SRC)))]
     (->> (for [xs (partition-by icon-src @(th/cursor state [:contents location]))]
-           (let [src (icon-src (first xs))
+           (let [ent (icon-entity (first xs))
+                 src (ent :SRC)
                  missed (src-missing src)]
-             (concat xs (missing-items missed {:SRC src}))))
+             (concat xs (missing-items missed ent))))
          (apply concat)
          vec)
     #_
@@ -387,7 +378,7 @@
       [:object {:position [0 0 -15]
                 :scale [40 40 1]}
        [u/sprite {:source "1024px-BlankMap-World-Flattened.svg.png"}]]
-      [:group {:position [0 -2 0]}
+      [:group {:position [-0.2 -2 0]}
        [northcom font (contents :northcom)]
        [eucom    font (contents :eucom)   ]
        [centcom  font (contents :centcom) ]
@@ -764,8 +755,8 @@
 
 (def empty-fill-stats
   ;;map of {src {c1 c2 <=c3 empty}}
-  {"IBCT" {"C1" 0 "C2" 0 "<=C3" 0 "Missed" 0}
-   "SBCT" {"C1" 0 "C2" 0 "<=C3" 0 "Missed" 0}
+  {"SBCT" {"C1" 0 "C2" 0 "<=C3" 0 "Missed" 0}
+   "IBCT" {"C1" 0 "C2" 0 "<=C3" 0 "Missed" 0}
    "ABCT" {"C1" 0 "C2" 0 "<=C3" 0 "Missed" 0}})
 
 (defn fill-stats->entries [m]
@@ -1010,12 +1001,15 @@
                         :justify-content "space-between"}}
          [three-canvas "root-scene" scene render-scene!]
          #_[fill-overlay @nc @ec @cc @pc]]]
-       [dash/flex-table 3 (fancy-percents @total-stats)
-        :style {:display "flex" :flex-wrap "wrap" ;:background "darkgray"
-                :font-size "2em"
-                :text-align "center"}
-        :cell-style (assoc dash/default-cell-style :justify-content "middle")]
        [flex-row {:style {:justify-content "space-around"}}
+        [:p {:style {:font-size "2em" :width "45%"}}
+         "Unit Distribution:"]
+        [dash/flex-table 3 (fancy-percents @total-stats)
+         :style {:display "flex" :flex-wrap "wrap" ;:background "darkgray"
+                 :font-size "2em"
+                 :text-align "center"}
+         :cell-style (assoc dash/default-cell-style :justify-content "middle")]]
+       [flex-row {:style {:justify-content "space-around" :border-style "solid"}}
         [:img {:src "northcom.png" :style { :width "7%"}}]
         [:p {:style {:font-size "1.5em"}} "USNORTHCOM" ]
         [:img {:src "eucom.png" :style {:width "7%"}}]

@@ -147,21 +147,24 @@
             (assoc-in  [:waiting id] dt))))))
 
 ;;moves consist of [:deployed|:home id from to]
-(defn tick-moves [s moves]
+(defn tick-moves [s moves entities]
   (reduce (fn [acc [mv id _ _ from to ]]
-            (case mv
-              :deployed    (deploy-unit acc id to 1) ;;deploy time is not necessary for replay, remove in future.
-              :re-deployed (re-deploy-unit acc id to 1) ;;deploy time is not necessary...
-              :returned   (send-home   acc id)
-              ;;ignore :dwell moves.
-              acc))
+            ;;ensure consistent readiness sync.  WIP!
+            (let [uacc acc #_(assoc-in acc [:entities id :readiness]
+                                (get-in entities [id :readiness]))]
+              (case mv
+                :deployed    (deploy-unit uacc id to 1) ;;deploy time is not necessary for replay, remove in future.
+                :re-deployed (re-deploy-unit uacc id to 1) ;;deploy time is not necessary...
+                :returned   (send-home   uacc id)
+                ;;ignore :dwell moves.
+                acc)))
           s moves))
 
 ;;just merge time varying information into entities.
 (defn tick-entities [s ents]
   (let [olds (s :entities)]
-    (->>  (reduce-kv (fn [acc id {:keys [curstate location readiness velocity]}]
-                       (assoc acc id (assoc (acc id) :state curstate :location location :readiness readiness
+    (->>  (reduce-kv (fn [acc id {:keys [state location readiness velocity]}]
+                       (assoc acc id (assoc (acc id) :state state :location location :readiness readiness
                                             :velocity velocity)))
                      olds ents)
           (assoc s :entities))))
@@ -220,8 +223,8 @@
               ;;move entities
               (-> tickstate
                   (assoc :c-day  t) ;;update time to frame.
-                  (tick-moves    moves) ;;process entity movement.
-                  (tick-entities entities)
+                  (tick-moves    moves entities) ;;process entity movement.
+                  (tick-entities entities) ;;reorder movement processing.
                   ;;missed demand.
                   (assoc-in [:stats :deployed :Missing] total-missed)
                   (tick-misses misses)
