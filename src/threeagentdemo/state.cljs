@@ -6,9 +6,21 @@
             [reagent.dom :as rdom]
             [threeagent.core :as th]))
 
+(def default-options
+  {:disclaimer? true
+   :marks?      true})
+
 ;; Use reactive atom for storing state
 (defonce state (th/atom {:animating true
                          :ticks 0
                          :sphere 0
                          :layout :stacked
-                         :containers :split}))
+                         :containers :split
+                         :class "UNCLASSIFIED"
+                         :disclaimer  "Notional"
+                         :options default-options}))
+
+
+(defn toggle-option [k]
+  (do (swap! state (fn [m] (update-in m [:options k] not)))
+      nil))

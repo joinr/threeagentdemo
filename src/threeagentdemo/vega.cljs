@@ -321,6 +321,7 @@
                                                #_#_:labelExpr "{'ltn': 'Late-to-Need'}[datum.label]"
                                                :labelFontSize 16
                                                :symbolSize 200
+                                               :symbolType "square"
                                                :title nil}}
                             ;;links to the scale's ordering directly.
                             :order {:field "color_trend_sort_index", :type "quantitative"}

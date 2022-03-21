@@ -197,10 +197,13 @@
 
 (defn split-cocom [position-scale  width height title font items]
   (let [keyf (u/memo-1 (fn [itm]
-                       ((juxt :SRC :compo) (icon-entity itm))))
+                         (when-let [{:keys [SRC compo]} (or (icon-entity itm)
+                                                            (some-> itm second :props))]
+                           [SRC compo]
+                           )))
         grouped (group-by keyf items)]
   [:object position-scale
-   [:object {:position [-3.25 8 #_7 -0.99]
+   [:object {:position [-3.25 8.5 #_7 -0.99]
              :scale    [1 1 0.1]}
     [:text {:text title
             :material (get-mat "black")
@@ -208,10 +211,10 @@
             :height 0.1
             :size 0.8}]]
    [:box {:width width :height height :material {:color "lightgrey"}
-          :position [0 3.8 -1]
+          :position [0 3.5 #_3.8 -1]
           :scale [1 1 0.03]}]
    [:box {:width 0.1 :height height :material {:color "black"}
-          :position [0 (- (/ height 2.0) 0.2) -1]
+          :position [0 (- (/ height 2.0) 1) -1]
           :scale [1 1 0.03]}]
    [:object {:position [0 1.8 -0.95]
              :scale [0.9 0.9 1.0]}
@@ -223,7 +226,7 @@
      [container 5 1
       (grouped ["ABCT" "NG"])]]
 
-    [translate [0.5 4 0]
+    [translate [0.5 3.5 0]
      [translate [-3.0 0 0]
       [container 5 1
        (grouped ["IBCT" "AC"])]]
@@ -249,7 +252,7 @@
   [id :northcom
    [split-cocom {:position [-9.5 0 -10]
            :scale    [0.5 0.5 0.5]}
-    12 8 "USNORTHCOM" font items]])
+    12 9 "USNORTHCOM" font items]])
 
 (defn eucom [font items]
   [id :eucom
@@ -264,7 +267,7 @@
    [split-cocom
     {:position [-3 0 -10]
      :scale    [0.5 0.5 0.5]}
-    12 8 "USEUCOM" font items]])
+    12 9 "USEUCOM" font items]])
 
 (defn centcom [font items]
   [id :centcom
@@ -276,7 +279,7 @@
   [id :centcom
    [split-cocom  {:position [3.5 0 -10]
             :scale    [0.5 0.5 0.5]}
-    12 8 "USCENTCOM" font items]])
+    12 9 "USCENTCOM" font items]])
 
 
 (defn pacom [font items]
@@ -289,7 +292,7 @@
   [id :pacom
    [split-cocom   {:position [10 0 -10]
              :scale    [0.5 0.5 0.5]}
-    12 8 "USINDOPACOM" font items]])
+    12 9"USINDOPACOM" font items]])
 
 (defn southcom [font items]
   [id :pacom
@@ -311,23 +314,25 @@
 
 (defn racetrack
   ([title width {:keys [title-position contents]
-                 :or   {title-position  [-1 4.25 0.1]}}]
+                 :or   {title-position  [-1 5.05 0.1]}}]
   (let [n width]
     [:object {:position [0 0 -8]
               :scale    [.8 .8 .8]}
-     [:plane {:width (+ width 0.1) :height 5.1 :material {:color "black"}
+     [:plane {:width (+ width 0.1) :height 7 #_5.1 :material {:color "black"}
               :position [0 2 -1.02]}]
-     [:plane {:width width :height 5 :material {:color "white"}
+     [:plane {:width width :height 6.9 #_5 :material {:color "white"}
               :position [0 2 -1.01]}]
      [:plane {:width width :height 0.8 :material {:color (u/c->hex :C1)}
-            :position [0 3.2 -1]}]
+            :position [0 4 -1]}]
      [:plane {:width width :height 0.8 :material {:color (u/c->hex :C2)}
-            :position [0 2.4 -1]}]
+            :position [0 3.2 -1]}]
      [:plane {:width width :height 0.8 :material {:color (u/c->hex :C3)}
-            :position [0 1.6 -1]}]
+            :position [0 2.4 -1]}]
      [:plane {:width width :height 0.8 :material {:color (u/c->hex :C4)}
-              :position [0 0.8 -1]}]
+              :position [0 1.6 -1]}]
      [:plane {:width width :height 0.8 :material {:color (u/c->hex :C5)}
+              :position [0 0.8 -1]}]
+     [:plane {:width width :height 0.8 :material {:color "grey"}
               :position [0 0 -1]}]
      [:text {:position title-position #_[-1 4.25 0.1]
              :scale    [ 1 1 0.1]
@@ -380,8 +385,9 @@
                            (swap! idx inc)
                            res))]
        (->> (for [ent ents]
-              [:sprite {:source (ent :icon)
-                        :position [(offset) (* (ent :readiness) 7) 0]}])
+              (let [yoffset (if (ent :unavailable) 0 1.25)]
+                [:sprite {:source (ent :icon)
+                          :position [(offset) (+ (* (ent :readiness) 7) yoffset) 0]}]))
             (into [:group]))))))
 
 (defn missing-items
@@ -391,6 +397,8 @@
 
 
 
+;;elevate to state option...
+(def +default-missed-compo+ "AC")
 
 (defn contents [location]
   (let [src-stats  @(th/cursor state [:fill-stats location])
@@ -401,7 +409,7 @@
            (let [ent (icon-entity (first xs))
                  src (ent :SRC)
                  missed (src-missing src)]
-             (concat xs (missing-items missed ent))))
+             (concat xs (missing-items missed (assoc ent :compo +default-missed-compo+)))))
          (apply concat)
          vec)
     #_
@@ -419,7 +427,7 @@
    [:object {:position [(* +sprite-width+ (+ offset 8)) 0 0]}
     [:box {:position [(- +sprite-width+) 0 0 ]
            :width 0.1
-           :height 14.25
+           :height 17.25
            :depth 0.01
            :material (get-mat "black")}]
     [icons-at-home rc-icons]]])
@@ -460,39 +468,45 @@
        [(if split? split-pacom    pacom)    font (contents :pacom)   ]]]
      [:group   {:position [0 -6.5 0]}
       [:plane  {:position [0 1.05  -9]
-                :width 32 :height 5 :material {:color "white"}}]
+                :width 32 :height 6.65 :material {:color "white"}}]
       [:group {:position [-12.85 -0.3 -8.5] :scale [0.9 0.9 0.1]}
-       [:text {:position [0 0.85 0]
+       [:text {:position [0 0.45 0]
+               :text "UNV"
+               :material (get-mat "black")
+               :font     (@state :font)
+               :height   0.1
+               :size     0.4}]
+       [:text {:position [0 1.4 #_0.85 0]
                :text "MOD"
                :material (get-mat "black")
                :font     (@state :font)
                :height   0.1
                :size     0.4}]
-       [:text {:position [0 1.7 0]
+       [:text {:position [0 2.42 #_1.7 0]
               :text "TRN"
                :material (get-mat "black")
                :font     (@state :font)
                :height   0.1
                :size     0.4}]
-       [:text {:position [0 2.505 0]
+       [:text {:position [0 3.4 #_2.505 0]
                :text "MSN"
                :material (get-mat "black")
                :font     (@state :font)
                :height   0.1
                :size     0.4}]]
       [:object {:position [-9 0 0]}
-       [racetrack (titles "ABCT") 8.1 {:title-position [-1.5 4.25 0.1]}] ]
+       [racetrack (titles "ABCT") 8.1 {:title-position [-1.5 5.05 0.1]}] ]
       ;;have to place these the in top level a
       [compo-icons {:position [-11.75 0 -8.8]
                     :scale [0.4 0.4 1]}
        (inc (entity-count counts "ABCT" "AC")) (get ABCT "AC") (get ABCT "RC")]
       [:object {:position [1.5 0 0]}
-       [racetrack (titles "IBCT") 18 {:title-position [-2 4.25 0.1]}]]
+       [racetrack (titles "IBCT") 18 {:title-position [-2 5.05 0.1]}]]
       [compo-icons {:position [-5 0 -8.8]
                     :scale    [0.4 0.4 1]}
        (+ (entity-count counts "IBCT" "AC")  5) (get IBCT "AC") (get IBCT "RC")]
       [:object {:position [11.15 0 0]}
-       [racetrack (titles "SBCT") 6 {:title-position  [-4 4.25 0.1]}]]
+       [racetrack (titles "SBCT") 6 {:title-position  [-4 5.05 0.1]}]]
       [compo-icons {:position [9.5 0 -8.8]
                     :scale    [0.4 0.4  1]}
        (entity-count counts "SBCT" "AC") (get SBCT "AC") (get SBCT "RC")]]]))
@@ -763,16 +777,21 @@
              :ac-rc-count ac-rc-count
              :titles titles)))
 
+;;unavailable is now explicitly accounted for in vstats.
+;;we have to be told that a unit is :unavailable true.
 (defn totals [s]
   (->> s :entities vals
        (reduce (fn [acc e]
-                 (case (e :location)
-                   :home (case (naive-c-rating e)
-                           (:C1 :C2) (update acc :available inc)
-                           (update acc :unavailable inc))
-                   (update acc :mission inc)))
+                 (if (e :unavailable)
+                   (update acc :unvailable inc)
+                   (case (e :location)
+                     :home (case (naive-c-rating e)
+                             (:C1 :C2) (update acc :ready inc)
+                             (update acc :not-ready inc))
+                     (update acc :mission inc))))
                {:mission 0
-                :available 0
+                :ready 0
+                :not-ready 0
                 :unavailable 0})))
 
 (defn init-stats [s tstart tstop empty-stats]
@@ -1037,6 +1056,15 @@
      `[:div.header ~(assoc attrs :style style)
        ~@contents]))
 
+(defn watermark [txt]
+  [:div {:style {:position "fixed" :top "10%" :left "0" :right 0 :bottom 0 :width "100%" :height "100%"
+                 :z-index 2
+                 :font-size "15em"
+                 :text-align "center"
+                 :opacity 0.5
+                 :pointer-events "none"}}
+   [:p "NOTIONAL"]])
+
 ;;WIP
 (defn wide-page [ratom]
   (let [render-scene! (fn [dt] (swap! ratom general-tick))
@@ -1045,62 +1073,72 @@
         cc            (th/cursor ratom [:fill-stats :centcom])
         pc            (th/cursor ratom [:fill-stats :pacom])
         total-stats   (th/cursor ratom [:stats :totals])
+        marking       (th/cursor ratom [:class])
+        disclaimer    (th/cursor ratom [:disclaimer])
+        options       (th/cursor ratom [:options])
         fancy-percents (fn [m]
                          (let [res (percentages m)]
-                           ["Mission" "Available" "Unavailable"
+                           ["Mission" "Ready" "Not Ready" "Unavailable"
                             (str (res :mission) "%")
-                            (str (res :available) "%")
+                            (str (res :ready) "%")
+                            (str (res :not-ready) "%")
                             (str (res :unavailable) "%")]))
         _              (add-watch c-day :percentages
                           (fn [_ _ oldt newt]
                             (when (> newt oldt)
                               (reset! total-stats (totals @ratom)))))]
     (fn []
-      [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%"}}
-       [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
-                              :justify-content "space-between"
-                              :font-size "xxx-large"}}
-        [:p {:id "c-day" :style {:margin "0 auto" :text-align "center" }}
-         ;;no idea why this causes a slow memory leak!
-         (str "Day:"  (int @c-day))
-         ]
-        [:p {:id "period" :style {:margin "0 auto" :text-align "center" }}
-         #_@period (str "Period: "  @period)
-         ]]
-       [flex-row {:style {:justify-content "space-between"}}
-        [:div {:id "chart" :style {:flex "0.48" :display "flex" :width "48%" :height "auto" :max-width "48%"
-                                   :flex-direction "column"}}
-         [v/vega-chart "fill-plot" (assoc v/fill-spec :height 260)]]
-        [:div  {:style {:display "flex" :flex "0.5" :max-width "50%"
-                        :height  "auto"  #_#_:class "fullSize" :overflow "hidden"
-                        :justify-content "space-between"}}
-         [three-canvas "root-scene" scene render-scene!]
-         #_[fill-overlay @nc @ec @cc @pc]]]
-       [flex-row {:style {:justify-content "space-around"}}
-        [:p {:style {:font-size "2em" :width "45%"}}
-         "Unit Distribution:"]
-        [dash/flex-table 3 (fancy-percents @total-stats)
-         :style {:display "flex" :flex-wrap "wrap" ;:background "darkgray"
-                 :font-size "2em"
-                 :text-align "center"}
-         :cell-style (assoc dash/default-cell-style :justify-content "middle")]]
-       [flex-row {:style {:justify-content "space-around" :border-style "solid"}}
-        [:img {:src "northcom.png" :style { :width "7%"}}]
-        [:p {:style {:font-size "1.5em"}} "USNORTHCOM" ]
-        [:img {:src "eucom.png" :style {:width "7%"}}]
-        [:p {:style {:font-size "1.5em"}} "USEUCOM" ]
-        [:img {:src "centcom.png" :style {:width "7%"}}]
-        [:p {:style {:font-size "1.5em"}} "USCENTCOM" ]
-        [:img {:src "pacom.png" :style {:width "7%"}}]
-        [:p {:style {:font-size "1.5em"}} "USINDOPACOM" ]]
-       [fill-row @nc @ec @cc @pc]
-       [:div.flexControlPanel {:style {:display "flex" :width "100%" :height "100%" #_"auto"}}
-        [:button.cesium-button {:style   {:flex "1" :font-size "1em"} :id "play" :type "button" :on-click #(play!)}
-         "play"]
-        [:button.cesium-button {:style {:flex "1" :font-size "1em"} :id "stop" :type "button" :on-click #(stop!)}
-         "stop"]
-        [:button.cesium-button {:style  {:flex "1" :font-size "1em"} :id "reset" :type "button" :on-click #(reset-state!)}
-         "reset"]]])))
+      (let [marks  [:p {:style {:text-align "center" :font-size "1em" :padding "0px"}} (str @marking)]]
+        [:div.header {:style {:display "flex" :flex-direction "column" :width "100%" :height "100%" }}
+         (when (and (@options :disclaimer?) @disclaimer)
+           [watermark @disclaimer])
+         marks
+         [:div.header  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
+                                :justify-content "space-between"
+                                :font-size "xx-large"}}
+          [:p {:id "c-day" :style {:margin "0 auto" :text-align "center" }}
+           ;;no idea why this causes a slow memory leak!
+           (str "Day:"  (int @c-day))
+           ]
+          [:p {:id "period" :style {:margin "0 auto" :text-align "center" }}
+           #_@period (str "Period: "  @period)
+           ]]
+         [flex-row {:style {:justify-content "space-between"}}
+          [:div {:id "chart" :style {:flex "0.48" :display "flex" :width "48%" :height "auto" :max-width "48%"
+                                     :flex-direction "column"}}
+           [v/vega-chart "fill-plot" (assoc v/fill-spec :height 260)]]
+          [:div  {:style {:display "flex" :flex "0.5" :max-width "50%"
+                          :height  "auto"  #_#_:class "fullSize" :overflow "hidden"
+                          :justify-content "space-between"}}
+           [three-canvas "root-scene" scene render-scene!]
+           #_[fill-overlay @nc @ec @cc @pc]]]
+         [flex-row {:style {:justify-content "space-between"}}
+          [:p {:style {:font-size "1.5em" :width "45%"}}
+           "Unit Distribution:"]
+          [dash/flex-table 4 (fancy-percents @total-stats)
+           :style {:display "flex" :flex-wrap "wrap" ;:background "darkgray"
+                   :font-size "1.5em"
+                   :text-align "center"
+                   :width "50%"}
+           :cell-style (assoc dash/default-cell-style :justify-content "middle")]]
+         [flex-row {:style {:justify-content "space-around" :border-style "solid"}}
+          [:img {:src "northcom.png" :style { :width "7%"}}]
+          [:p {:style {:font-size "1.5em"}} "USNORTHCOM" ]
+          [:img {:src "eucom.png" :style {:width "7%"}}]
+          [:p {:style {:font-size "1.5em"}} "USEUCOM" ]
+          [:img {:src "centcom.png" :style {:width "7%"}}]
+          [:p {:style {:font-size "1.5em"}} "USCENTCOM" ]
+          [:img {:src "pacom.png" :style {:width "7%"}}]
+          [:p {:style {:font-size "1.5em"}} "USINDOPACOM" ]]
+         [fill-row @nc @ec @cc @pc]
+         [:div.flexControlPanel {:style {:display "flex" :width "100%" :height "100%" #_"auto"}}
+          [:button.cesium-button {:style   {:flex "1" :font-size "1em"} :id "play" :type "button" :on-click #(play!)}
+           "play"]
+          [:button.cesium-button {:style {:flex "1" :font-size "1em"} :id "stop" :type "button" :on-click #(stop!)}
+           "stop"]
+          [:button.cesium-button {:style  {:flex "1" :font-size "1em"} :id "reset" :type "button" :on-click #(reset-state!)}
+           "reset"]]
+        marks]))))
 
 (defn stacked-page [ratom]
   (let [render-scene! (fn [dt] (swap! ratom general-tick))
@@ -1111,9 +1149,10 @@
         total-stats   (th/cursor ratom [:stats :totals])
         fancy-percents (fn [m]
                          (let [res (percentages m)]
-                           ["Mission" "Available" "Unavailable"
+                           ["Mission" "Ready" "Not Ready" "Unavailable"
                             (str (res :mission) "%")
-                            (str (res :available) "%")
+                            (str (res :ready) "%")
+                            (str (res :not-ready) "%")
                             (str (res :unavailable) "%")]))
         _              (add-watch c-day :percentages
                           (fn [_ _ oldt newt]
@@ -1124,7 +1163,7 @@
        [:div {:id "chart-root" :style {:display "flex"}}
         [:div {:style {:flex "0.95" #_"0.95" :max-width "95%"}}
          [v/vega-chart "fill-plot" (assoc v/fill-spec :height 100)]]]
-       [dash/flex-table 3 (fancy-percents @total-stats)
+       [dash/flex-table 4 (fancy-percents @total-stats)
         :style {:display "flex" :flex-wrap "wrap" ;:background "darkgray"
                         :font-size "1em"}]
        [:div  {:style {:display "flex" :width "100%" :height  "auto"  :class "fullSize" :overflow "hidden"
