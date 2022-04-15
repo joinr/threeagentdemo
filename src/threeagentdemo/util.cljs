@@ -3,9 +3,48 @@
             ["three" :as three]
             [threeagentdemo.svg :as svg]
             [cljs-http.client :as http]
-            [cljs.core.async :refer [<! go]])
+            [cljs.core.async :refer [<! go]]
+            [clojure.edn])
   (:require-macros [threeagent.macros :refer [defcomponent]]))
 
+
+;;file i/o stuff
+;;==============
+(defn first-file
+  [e]
+  (let [target (.-currentTarget e)
+        file (-> target .-files (aget 0))]
+    (set! (.-value target) "")
+    file))
+
+;;we have a side-effecting load when we invoke the callback for onload,
+;;and the result is passed to load-moves!  on-load takes the raw text from
+;;the file and does stuff with it.
+(defn load-file-text! [file on-load & {:keys [before-load]}]
+  (let [reader (js/FileReader.)
+        _ (println (str "loading file:" (.-name file)))
+        _ (when before-load (before-load))]
+    (set! (.-onload reader)
+          #(some-> % .-target .-result on-load))
+    (.readAsText reader file)))
+
+;;load a local file as text and read it as edn.  probably
+;;faster means to serialize this, but meh.
+(defn read-file! [file on-load & {:keys [before-load]}]
+  (load-file-text! file
+     (fn [txt] (some-> txt clojure.edn/read-string on-load))
+     :before-load before-load))
+
+;;simplistic drop-down reagent element.
+(defn ->drop-down [label id opts & {:keys [on-change]}]
+  [:div
+   (when label [:p {:style {:font-size "70%"}} label])
+   [:select.cesium-button {:id id :name id :on-change #(on-change (keyword (.. % -target -value)))}
+    (for [[k v] opts]
+      ^{:key k} [:option {:value (name k)} v])]])
+
+;;other utils
+;;===========
 
 (defn device-pixel-ratio []
   (.-devicePixelRatio js/window))

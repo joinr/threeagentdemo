@@ -1065,6 +1065,39 @@
                  :pointer-events "none"}}
    [:p "NOTIONAL"]])
 
+;;load file button...
+;;we bypass our call to load-replay-stats! currently.
+(defn file-input []
+  [:input.cesium-button
+   {:type "file" :id "file" :accept ".txt" :name "file" :on-change
+    (fn [e] (swap! state assoc :file-to-load
+                   (u/read-file! (u/first-file e) init-replay-state  #_#_:before-load  clean-stats!)))}])
+
+(defn set-marking! [x]
+  (swap! state merge
+         (case x
+           :u {:class "UNCLASSIFIED"
+               :disclaimer  nil}
+           :cui {:class "CUI"
+                 :disclaimer nil}
+           :s {:class "SECRET"
+               :disclaimer nil}
+           :snf {:class "SECRET//NOFORN"
+                 :disclaimer nil}
+           :ts  {}
+           {:class "UNCLASSIFIED"
+            :disclaimer "Notional"})))
+
+(defn class-options []
+  (u/->drop-down nil #_"Classification" "classopts"
+               {:default          :default
+                :u                :u
+                :cui              :cui
+                :s                :s
+                :snf              :snf
+                :ts               :ts}
+               :on-change #(set-marking! %)))
+
 ;;WIP
 (defn wide-page [ratom]
   (let [render-scene! (fn [dt] (swap! ratom general-tick))
@@ -1137,7 +1170,9 @@
           [:button.cesium-button {:style {:flex "1" :font-size "1em"} :id "stop" :type "button" :on-click #(stop!)}
            "stop"]
           [:button.cesium-button {:style  {:flex "1" :font-size "1em"} :id "reset" :type "button" :on-click #(reset-state!)}
-           "reset"]]
+           "reset"]
+          [class-options]
+          [file-input]]
         marks]))))
 
 (defn stacked-page [ratom]
