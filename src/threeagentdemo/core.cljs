@@ -371,7 +371,7 @@
                                        (case (e :compo)
                                          "AC" "AC"
                                          "RC")) xs)]
-            [src compo (sort-by :readiness ys)])
+            [src compo (sort-by (juxt (complement :unavailable) :readiness) ys)])
           (reduce (fn [acc [src compo xs]]
                     (assoc-in acc [src compo] xs)) {}))))
   ([] (grouped-entities-at-home @state)))
@@ -783,7 +783,7 @@
   (->> s :entities vals
        (reduce (fn [acc e]
                  (if (e :unavailable)
-                   (update acc :unvailable inc)
+                   (update acc :unavailable inc)
                    (case (e :location)
                      :home (case (naive-c-rating e)
                              (:C1 :C2) (update acc :ready inc)

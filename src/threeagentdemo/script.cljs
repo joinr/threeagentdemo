@@ -156,6 +156,7 @@
                 :deployed    (deploy-unit uacc id to 1) ;;deploy time is not necessary for replay, remove in future.
                 :re-deployed (re-deploy-unit uacc id to 1) ;;deploy time is not necessary...
                 :returned   (send-home   uacc id)
+                :unavailable acc
                 ;;ignore :dwell moves.
                 acc)))
           s moves))
@@ -163,9 +164,10 @@
 ;;just merge time varying information into entities.
 (defn tick-entities [s ents]
   (let [olds (s :entities)]
-    (->>  (reduce-kv (fn [acc id {:keys [state location readiness velocity]}]
+    (->>  (reduce-kv (fn [acc id {:keys [state location readiness velocity unavailable]}]
                        (assoc acc id (assoc (acc id) :state state :location location :readiness readiness
-                                            :velocity velocity)))
+                                            :velocity velocity
+                                            :unavailable unavailable)))
                      olds ents)
           (assoc s :entities))))
 
@@ -203,6 +205,7 @@
 ;;otherwise we interpolate from the current state.
 
 ;;we're just adding up time-variable stats, namely readiness.
+;;have to account for :unavailable state.
 (defn lerp-frame [tickstate]
   (update tickstate :entities
           (fn [ents]
