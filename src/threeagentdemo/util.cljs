@@ -8,6 +8,14 @@
   (:require-macros [threeagent.macros :refer [defcomponent]]))
 
 
+;;debug stuff
+;;===========
+(defn state-where [f xs]
+  (some (fn [x] (when (f x) x)) xs))
+
+(defn state-at [t xs]
+  (state-where #(= (% :t) t) xs))
+
 ;;file i/o stuff
 ;;==============
 (defn first-file

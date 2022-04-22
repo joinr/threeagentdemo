@@ -385,9 +385,11 @@
                            (swap! idx inc)
                            res))]
        (->> (for [ent ents]
-              (let [yoffset (if (ent :unavailable) 0 1.25)]
+              (let [unav    (ent :unavailable)
+                    yoffset (if unav 0 1.25)
+                    readiness (if unav 0 (ent :readiness))]
                 [:sprite {:source (ent :icon)
-                          :position [(offset) (+ (* (ent :readiness) 7) yoffset) 0]}]))
+                          :position [(offset) (+ (* readiness 7) yoffset) 0]}]))
             (into [:group]))))))
 
 (defn missing-items

@@ -103,7 +103,8 @@
         c-icon   (or (get-in u/c-icons [icon c-rating])
                      (throw (ex-info "unknown sprite!" {:in [icon c-rating]})))
         from     (ent :location)
-        _        (println [:deploying id :from from :to location :c-rating c-rating :t (s :c-day) ent])]
+        ;_        (println [:deploying id :from from :to location :c-rating c-rating :t (s :c-day) ent])
+        ]
     (-> s
         (update-in [:locations from] disj id)
         (update-in [:locations location] (fn [v] (conj (or v #{}) id)))
