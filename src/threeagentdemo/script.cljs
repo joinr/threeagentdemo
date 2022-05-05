@@ -76,25 +76,38 @@
   #_
   (max 0 (dec n)))
 
+;;make-available is a simpler send-home.  if entity location
+;;is :home already, and its got an unavailable flag, we skip fill stats.
+(defn make-available [s id]
+  (-> s
+      (update-in [:entities id] assoc :wait-time 0 :readiness 0 :location :home)
+      (update-in [:waiting] dissoc id)))
+
 ;;extract from frame.
 (defn send-home [s id]
   (let [ent      (-> s :entities (get id))
-        location (ent :location)
-        ;;different...we already know.
-        c-rating (naive-c-rating ent) #_(-> ent c-rating upper-c)]
-    (-> s
-        (update-in [:locations :home] conj id)
-        (update-in [:locations location] (fn [v] (disj (or v #{}) id)))
-        ;;lame linear scan...
-        (update-in [:contents  location] (fn [v] (vec (remove  (fn [v]
-                                                                 (= (-> v meta :id) id))
-                                                               (or v [])))))
-        (update-in [:slots     location] inc)
-        (update-in [:entities id] assoc :wait-time 0 :readiness 0 :location :home)
-        (update-in [:stats :deployed c-rating] #_dec dec-pos)
-        (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)]
-                   #_dec dec-pos)
-        (update-in [:waiting] dissoc id))))
+        location (ent :location)]
+    (if (and (ent :unavailable) (= location :home))
+      (make-available s id)
+      (let [;;different...we already know.
+            c-rating (or (get-in s [:readiness id])
+                         (throw (ex-info "unit not on the board!"
+                                         {:id id :msg :send-home :location location})))
+            #_(naive-c-rating ent) #_(-> ent c-rating upper-c)]
+      (-> s
+          (update-in [:locations :home] conj id)
+          (update-in [:locations location] (fn [v] (disj (or v #{}) id)))
+          ;;lame linear scan...
+          (update-in [:contents  location] (fn [v] (vec (remove  (fn [v]
+                                                                   (= (-> v meta :id) id))
+                                                                 (or v [])))))
+          (update-in [:slots     location] inc)
+          (update-in [:entities id] assoc :wait-time 0 :readiness 0 :location :home)
+          (update-in [:stats :deployed c-rating] #_dec dec-pos)
+          (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)]
+                     #_dec dec-pos)
+          (update-in [:waiting] dissoc id)
+          (update    :readiness dissoc id))))))
 
 (defn deploy-unit [s id location dt]
   (let [ent      (-> s :entities (get id))
@@ -117,49 +130,69 @@
         (update-in [:entities id] assoc  :wait-time dt :location location)
         (update-in [:stats :deployed c-rating] inc)
         (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)] inc)
-        (assoc-in  [:waiting id] dt))))
+        (assoc-in  [:waiting id] dt)
+        (assoc-in  [:readiness id] c-rating))))
 
+;;it's possible we have re-deployments where we seem to go from being unavailable
+;;to deploying to another demand; in reality, the unit is unavailable, the demand
+;;deactivates, unit goes home, goes back to policy, may have been deployable, new
+;;demand activates (or is existing), gets filled by unit, and unit then deploys on
+;;the same tick.  So we have a perceived re-deploy event, which is really a deploy
+;;event...
 (defn re-deploy-unit [s id location dt]
   (let [ent      (-> s :entities (get id))]
-    (if (= (ent :location) location) ;;short circuit if region is the same.
-      s
-      (let [c-rating (naive-c-rating ent)
-            icon     (ent :icon)
-            c-icon   (or (get-in u/c-icons [icon c-rating])
-                         (throw (ex-info "unknown sprite!" {:in [icon c-rating]})))
-            from     (ent :location)]
-        (-> s
-            (update-in [:locations from] disj id)
-            (update-in [:locations location] (fn [v] (conj (or v #{}) id)))
-            (update-in [:contents  location] (fn [v]
-                                               (u/insert-by (or v [])
-                                                            (fn [itm] (-> itm second :source))
-                                                            ^{:id id}
-                                                            [:sprite {:source c-icon #_(ent :icon)}])))
-            (update-in [:contents  from] (fn [v] (vec (remove  (fn [v]
-                                                                     (= (-> v meta :id) id))
-                                                                   (or v [])))))
-            (update-in [:slots     location] dec-pos #_dec)
-            (update-in [:slots     from] inc)
-            (update-in [:entities id] assoc  :wait-time dt :location location)
+    (cond
+       (= (ent :location) location) ;;short circuit if region is the same.
+        s
+       (= (ent :location) :home) ;;this is a collapsed deployment due to cannibalization
+        (deploy-unit s id location dt)
+       :else
+       (let [c-rating (or (get-in s [:readiness id])
+                          (throw (ex-info "unit not on the board!"
+                                          {:id id :msg :re-deploy :location location})))
+                      #_(naive-c-rating ent)
+             icon     (ent :icon)
+             c-icon   (or (get-in u/c-icons [icon c-rating])
+                          (throw (ex-info "unknown sprite!" {:in [icon c-rating]})))
+             from     (ent :location)]
+         (-> s
+             (update-in [:locations from] disj id)
+             (update-in [:locations location] (fn [v] (conj (or v #{}) id)))
+             (update-in [:contents  location] (fn [v]
+                                                (u/insert-by (or v [])
+                                                             (fn [itm] (-> itm second :source))
+                                                             ^{:id id}
+                                                             [:sprite {:source c-icon #_(ent :icon)}])))
+             (update-in [:contents  from] (fn [v] (vec (remove  (fn [v]
+                                                                  (= (-> v meta :id) id))
+                                                                (or v [])))))
+             (update-in [:slots     location] dec-pos #_dec)
+             (update-in [:slots     from] inc)
+             (update-in [:entities id] assoc  :wait-time dt :location location)
                                         ;(update-in [:stats :deployed c-rating] inc)
-            (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)] inc)
-            (update-in [:fill-stats from     (ent :SRC) (u/c-rating->fill-stat c-rating)] #_dec dec-pos)
-            (assoc-in  [:waiting id] dt))))))
+             (update-in [:fill-stats location (ent :SRC) (u/c-rating->fill-stat c-rating)] inc)
+             (update-in [:fill-stats from     (ent :SRC) (u/c-rating->fill-stat c-rating)] #_dec dec-pos)
+             (assoc-in  [:waiting id] dt))))))
+
+;;extra state for unavailables.  We may have a transition from deployed -> unavailable or
+;;dwelling -> unavailable, so we need to capture these.  If unit is deployed, send it home.
+(defn make-unavailable [s id]
+  (let [ent      (-> s :entities (get id))
+        location (ent :location)]
+    (if (= location :home)
+      s
+      (send-home s id))))
 
 ;;moves consist of [:deployed|:home id from to]
 (defn tick-moves [s moves entities]
   (reduce (fn [acc [mv id _ _ from to ]]
-            ;;ensure consistent readiness sync.  WIP!
-            (let [uacc acc #_(assoc-in acc [:entities id :readiness]
-                                (get-in entities [id :readiness]))]
-              (case mv
-                :deployed    (deploy-unit uacc id to 1) ;;deploy time is not necessary for replay, remove in future.
-                :re-deployed (re-deploy-unit uacc id to 1) ;;deploy time is not necessary...
-                :returned   (send-home   uacc id)
-                :unavailable acc
+            (case mv
+              :deployed    (deploy-unit acc id to 1) ;;deploy time is not necessary for replay, remove in future.
+              :re-deployed (re-deploy-unit acc id to 1) ;;deploy time is not necessary...
+              :returned   (send-home   acc id)
+              :unavailable (make-unavailable acc id)  ;;we need to keep track of unavailable for when they come back.
                 ;;ignore :dwell moves.
-                acc)))
+                acc))
           s moves))
 
 ;;just merge time varying information into entities.

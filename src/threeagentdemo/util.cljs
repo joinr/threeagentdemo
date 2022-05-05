@@ -122,9 +122,10 @@
       (three/Sprite. material))))
 
 (def ratio (device-pixel-ratio))
+(def current-ar (/ 1.0 ratio))
 
 (defn sprite [{:keys [source]}]
-  [:object {:scale [1 (/ 1.0 ratio) 1]}
+  [:object {:scale [1 1 1]}
    [:sprite {:source source}]])
 
 

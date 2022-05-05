@@ -461,7 +461,7 @@
       [:point-light {:intensity 0.6}]]
      [:group   {:position [0 2 2]} ;;container layer
       [:object {:position [0 0 -15]
-                :scale [40 40 1]}
+                :scale [40 20 1]}
        [u/sprite {:source "1024px-BlankMap-World-Flattened.svg.png"}]]
       [:group {:position [-0.2 -2 0]}
        [(if split? split-northcom northcom) font (contents :northcom)]
@@ -918,7 +918,8 @@
                        frames) ;;kinda lame.
                 ;(init-demand regions);;not necessary?
                 (init-stats  tstart tstop empty-fill-stats)
-                (assoc :tick-fn script/tick-frame))) ;;should work as normal, if regions are locked.
+                (assoc :tick-fn script/tick-frame)
+                (assoc :readiness {}))) ;;should work as normal, if regions are locked.
     ;;could be cleaner.  revisit this.
     (v/push-extents! :fill-plot-view tstart tstop)
     (reset! demand-profile (script/compute-outline vstats))
