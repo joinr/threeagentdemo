@@ -402,6 +402,11 @@
 ;;elevate to state option...
 (def +default-missed-compo+ "AC")
 
+;;we have an error here: computing the missed srcs only happens if there are any contents
+;;at the location already.  Visually, this helps us to tack on missed demand per SRC,
+;;so we have an adjacent entity deployed there.  However if nothing is there, we
+;;get no sequence from partition-by, and never compute the missed demands.
+#_
 (defn contents [location]
   (let [src-stats  @(th/cursor state [:fill-stats location])
         src-missing (reduce-kv (fn [acc src stats]
@@ -413,10 +418,21 @@
                  missed (src-missing src)]
              (concat xs (missing-items missed (assoc ent :compo +default-missed-compo+)))))
          (apply concat)
-         vec)
-    #_
-  (vec (concat @(th/cursor state [:contents location])
-               (missing-items @(th/cursor state [:slots location]))))))
+         vec)))
+
+(defn contents [location]
+  (let [src-stats  @(th/cursor state [:fill-stats location])
+        src-missing (reduce-kv (fn [acc src stats]
+                                 (assoc acc src (get stats "Missed" 0))) {} src-stats)
+        icon-src    (u/memo-1 (fn [icon] (-> icon icon-entity :SRC)))
+        icon-groups (group-by icon-src @(th/cursor state [:contents location]))]
+    (->> (for [[src stats] src-stats]
+           (let [xs     (icon-groups src)
+                 ent    (or (when (first xs) (icon-entity (first xs))) {:SRC src})
+                 missed (src-missing src)]
+             (concat xs (missing-items missed (assoc ent :compo +default-missed-compo+)))))
+         (apply concat)
+         vec)))
 
 (defn counts->title [s src]
   (let [cs    (get s src {"AC" 0 "NG" 0 "USAR" 0})
