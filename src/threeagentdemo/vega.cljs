@@ -332,7 +332,8 @@
                 :transform [{:filter {:field "trend", :equal "Demand"}}]
                 :encoding  {:x  {:field "c-day" :type "quantitative"
                                  :scale {:domain [{:expr "xmin"} {:expr "xmax"}]
-                                         :nice false}},
+                                         :nice false}
+                                 },
                             :y  {:field "value"
                                  :type "quantitative"},
                             :color {:value "white"} #_{:field "trend",
@@ -346,7 +347,20 @@
                                                :labelFontSize 16
                                                :symbolSize 200
                                                :title nil}}
-                            :size {:value 2}}}]
+                            :size {:value 2}}}
+               {:mark "rule",
+                :data {:name "period"}
+                :encoding {:x    {:field "c-day"
+                                  :type "quantitative"
+                                  :scale {:domain [{:expr "xmin"} {:expr "xmax"}]
+                                          :nice false}}
+                           :size {:value 2},
+                           :color {:value {:expr "ruleColor"}}
+                           :strokeCap {:value "square"}
+                           :strokeDash {:value [8 8]}
+                           :opacity {:value 0.65}
+                           }
+                }]
        }
       (merge dark-theme)
       #_clj->js))

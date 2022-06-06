@@ -600,6 +600,7 @@
 (def c-day  (th/cursor state [:c-day]))
 (def period (th/cursor state [:period]))
 (def demand-profile (th/cursor state [:demand-profile]))
+(def periods (th/cursor state [:periods]))
 
 (def readiness-rate
   {"AC"  (u/precision (/ 1 365) 4)
@@ -865,6 +866,17 @@
               #js[#js{:c-day t :trend "Demand" :value compdemand}])
             cdemands)))
 
+;;not using sorted-map, assuming we have <= 10 periods...brittle assumption
+(defn compute-periods [s]
+  (->> s
+       :frames
+       (map (juxt :t :period))
+       (reduce (fn [acc [t p]] (if (acc p) acc (assoc acc p t))) {})
+       (sort-by second)
+       (map (fn [[p t]]
+                 #js{:c-day t :value p}))
+       (clj->js)))
+
 (def empty-fill-stats
   ;;map of {src {c1 c2 <=c3 empty}}
   {"SBCT" {"C1" 0 "C2" 0 "<=C3" 0 "Missed" 0}
@@ -926,7 +938,9 @@
 ;;the differences here are that we pass in a different setup.
 (defn init-replay-state [vstats]
   (let [{:keys [entities tstart tstop demand slots period frames c-day profile] :as vstats}
-        (script/init-state vstats)]
+        (script/init-state vstats)
+        outline (script/compute-outline vstats)
+        period-data (compute-periods vstats)]
     (swap! state
            #(-> %
                 (init-entities (vals entities)) ;;necessary, works with entities
@@ -935,10 +949,12 @@
                 ;(init-demand regions);;not necessary?
                 (init-stats  tstart tstop empty-fill-stats)
                 (assoc :tick-fn script/tick-frame)
-                (assoc :readiness {}))) ;;should work as normal, if regions are locked.
+                (assoc :readiness {})
+                (assoc :periods period-data))) ;;should work as normal, if regions are locked.
     ;;could be cleaner.  revisit this.
     (v/push-extents! :fill-plot-view tstart tstop)
-    (reset! demand-profile (script/compute-outline vstats))
+    (reset! demand-profile outline)
+    (reset! periods period-data)
     #_
     (watch-until :fill-plot-exists
                  threeagentdemo.vega/charts
@@ -974,6 +990,12 @@
                (v/clear-data! :fill-plot-view :table-name "demandtrend")
                (v/push-samples! :fill-plot-view n
                                 :table-name "demandtrend")))
+  (add-watch periods :periods
+             (fn [k r o n]
+               (println [:updating-periods])
+               (v/clear-data! :fill-plot-view :table-name "period")
+               (v/push-samples! :fill-plot-view n
+                                :table-name "period")))
   (add-watch c-day :plotting
                (fn [k r oldt newt]
                  (cond (< newt oldt)
