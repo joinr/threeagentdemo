@@ -387,11 +387,7 @@
        (->> (for [ent ents]
               (let [unav    (ent :unavailable)
                     yoffset (if unav 0 1.25)
-                    readiness (if unav 0 (ent :readiness))
-                    readiness (if (<= readiness 1.0)
-                                readiness
-                                (do (println [:entity-readiness-clamped (ent :id)])
-                                    1.0))]
+                    readiness (if unav 0 (ent :readiness))]
                 [:sprite {:source (ent :icon)
                           :position [(offset) (+ (* readiness 7) yoffset) 0]}]))
             (into [:group]))))))
