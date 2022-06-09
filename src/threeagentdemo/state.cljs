@@ -8,7 +8,8 @@
 
 (def default-options
   {:disclaimer? true
-   :marks?      true})
+   :marks?      true
+   :fill/sampling-frequency 2})
 
 ;; Use reactive atom for storing state
 (defonce state (th/atom {:animating true

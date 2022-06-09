@@ -13,9 +13,9 @@
    [threeagentdemo.testdata :as td]
    [threeagentdemo.vega :as v]
    [threeagentdemo.script :as script]
-   [cljs.core.async :as a :refer [chan put! >! <! close!]]
-   [threeagentdemo.dash :as dash])
-  (:require-macros [cljs.core.async :refer [go]]))
+   [cljs.core.async :as a :refer [chan put! >! <! close! go go-loop]]
+   [cljs.core.async.interop :refer [<p!]]
+   [threeagentdemo.dash :as dash]))
 
 (def ^:dynamic *bbox-color* "black")
 
@@ -387,7 +387,11 @@
        (->> (for [ent ents]
               (let [unav    (ent :unavailable)
                     yoffset (if unav 0 1.25)
-                    readiness (if unav 0 (ent :readiness))]
+                    readiness (if unav 0 (ent :readiness))
+                    readiness (if (<= readiness 1.0)
+                                readiness
+                                (do (println [:entity-readiness-clamped (ent :id)])
+                                    1.0))]
                 [:sprite {:source (ent :icon)
                           :position [(offset) (+ (* readiness 7) yoffset) 0]}]))
             (into [:group]))))))
@@ -983,6 +987,32 @@
         #js{:c-day t :trend "C5" :value C5}
         #js{:c-day t :trend "Missed Demand" :value Missing}]))
 
+;;one problem we're running into with vega, is that the longer we go, using
+;;synchronous push-samples (which invokes run instead of runAsync), we
+;;end up doing a lot more transforms that scale linearly with the arrays...
+;;So we have a couple of options: do the sampling asynch, or update more
+;;sparsely.  Both involve having some buffering mechanism to control
+;;how frequently samples are flushed.  We can use runAsync and collect new
+;;samples until a promise is delivered, then flush the samples if any are pending.
+
+(defn pusher [view table-name]
+  (let [pending (atom nil) ;;worker chan
+        coll    (atom nil)
+        push    (fn [xs] (v/push-samples-async! view xs :table-name table-name))]
+    (fn pusher-fn [xs]
+      (if @pending
+        (swap! coll (fn [arr] (if arr (.concat arr xs) xs)))
+        ;;no pending work, submit xs for processing
+        ;;and record pending worker...
+        (let [work (go-loop [p (push xs)]
+                     (<p! p) ;;vega is done.
+                     ;;try to flush samples.
+                     (if @coll
+                       (do (reset! coll nil)
+                           (recur (push coll)))
+                       (reset! pending nil)))]
+          (reset! pending work))))))
+
 (defn plot-watch! []
   (add-watch demand-profile :demand-profile
              (fn [k r o n]
@@ -996,13 +1026,44 @@
                (v/clear-data! :fill-plot-view :table-name "period")
                (v/push-samples! :fill-plot-view n
                                 :table-name "period")))
+
+  ;;original
+  #_
   (add-watch c-day :plotting
+             (fn [k r oldt newt]
+               (cond (< newt oldt)
+                     (do (v/rewind-samples! :fill-plot-view "c-day" newt))
+                     (> newt oldt)
+                     (do (v/push-samples!   :fill-plot-view (daily-stats newt)))
+                     :else nil)))
+  ;;async is worse!
+  #_
+  (let [pf (pusher :fill-plot-view "table")]
+    (add-watch c-day :plotting
                (fn [k r oldt newt]
                  (cond (< newt oldt)
                        (do (v/rewind-samples! :fill-plot-view "c-day" newt))
                        (> newt oldt)
-                       (do (v/push-samples!   :fill-plot-view (daily-stats newt)))
+                       (do (pf (daily-stats newt)) #_(v/push-samples!   :fill-plot-view (daily-stats newt)))
                        :else nil))))
+  ;;buffered, sampling at a fixed frequency...
+  (add-watch c-day :plotting
+             (let [samples (atom nil)
+                   freq    (th/cursor state [:options :fill/sampling-frequency])]
+               (fn [k r oldt newt]
+                 (cond (< newt oldt)
+                       (do (v/rewind-samples! :fill-plot-view "c-day" newt)
+                           ;;for now this will cause problems with actual rewinding,
+                           ;;but if we're resetting to 0, clears up glitches...
+                           (reset! samples nil))
+                       (> newt oldt)
+                         (let [stats (daily-stats newt)
+                               xs    (if @samples (.concat @samples stats) stats)]
+                           (if (or (zero? (rem newt @freq)) (= newt (get @state :tstop)))
+                             (do (reset! samples nil)
+                                 (v/push-samples!   :fill-plot-view xs))
+                             (do (reset! samples xs))))
+                       :else nil)))))
 
 ;;helpers
 (defn current-context []

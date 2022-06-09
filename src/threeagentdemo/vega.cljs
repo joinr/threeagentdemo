@@ -474,6 +474,11 @@
         cs (as-changes #_->changes xs)]
     (.run (.change vw table-name cs))))
 
+(defn push-samples-async! [plot-name xs & {:keys [table-name] :or {table-name "table"}}]
+  (let [vw (or (some-> @charts (get plot-name) .-view) (throw (ex-info "unknown plot!" {:name plot-name})))
+        cs (as-changes #_->changes xs)]
+    (.runAsync (.change vw table-name cs))))
+
 (defn rewind-samples! [plot-name field bound]
   (let [vw (or (some-> @charts (get plot-name) .-view) (throw (ex-info "unknown plot!" {:name plot-name})))
         cs (->rewind field bound)]

@@ -11,6 +11,8 @@
 ;;In the very near future, we need to have actual rearmm policies
 ;;that have c5 in them.
 
+(def ^:dynamic *warn-on-clamp* nil)
+
 (def upper-c
   {:c1 :C1
    :c2 :C2
@@ -195,13 +197,22 @@
                 acc))
           s moves))
 
+(defn readiness-clamp [{:keys [readiness velocity id] :as e}]
+  (if (<= readiness 1.0)
+    e
+    (do (when *warn-on-clamp* (println [:entity-readiness-clamped id]))
+        (assoc e :readiness 1.0 :velocity 0))))
+
 ;;just merge time varying information into entities.
 (defn tick-entities [s ents]
   (let [olds (s :entities)]
     (->>  (reduce-kv (fn [acc id {:keys [state location readiness velocity unavailable]}]
-                       (assoc acc id (assoc (acc id) :state state :location location :readiness readiness
-                                            :velocity velocity
-                                            :unavailable unavailable)))
+                       (->> (-> (acc id)
+                                (assoc  :state state :location location :readiness readiness
+                                        :velocity velocity
+                                        :unavailable unavailable)
+                                readiness-clamp)
+                            (assoc acc id)))
                      olds ents)
           (assoc s :entities))))
 
@@ -246,7 +257,7 @@
             (reduce-kv (fn [acc id ent]
                          (if (not= (ent :location) :home)
                            (assoc acc id ent)
-                           (assoc acc id (update ent :readiness + (ent :velocity)))))
+                           (assoc acc id (readiness-clamp (update ent :readiness + (ent :velocity))))))
                        ents ents))))
 
 (defn tick-frame [tickstate]
